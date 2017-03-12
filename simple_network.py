@@ -20,16 +20,17 @@ learning_rate = 1.0
 momentum = 0.9
 batch_size = 64
 
-# Set some architectural parameter invariants
+# Set some architectural parameter invariants.
 num_classes = 8
 
 # Define the symbolic variables and expressions for network computation.
-inputs = tensor.tensor3(name='inputs')
+inputs = tensor.tensor4(name='inputs')
 labels = tensor.matrix(name='labels')
 
-input_layer = layers.InputLayer(shape=(None, image_width, image_width),
+input_layer = layers.InputLayer(shape=(None, 3, image_width, image_width),
                                 input_var=inputs, name='input_layer')
-input_layer_reshaped = layers.ReshapeLayer(incoming=input_layer, shape=(64*64,),
+input_layer_reshaped = layers.ReshapeLayer(incoming=input_layer,
+                                           shape=(image_width*image_width*3,),
                                            name='input_layer_reshaped')
 output_layer = layers.DenseLayer(
     incoming=input_layer_reshaped, num_units=8,
