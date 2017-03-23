@@ -1,4 +1,4 @@
-"""A module containing all methods for loading and iterating through the data. 
+"""
 """
 
 import os
@@ -54,10 +54,10 @@ class Loader:
             relative_file_paths.extend(valid_file_paths)
         return relative_file_paths
 
-    def _get_images(self, image_paths, resized_width):
+    def _get_images(self, image_paths):
         """Given a list of image paths (absolute or relative), and a desired image
         width, this returns a numpy array with the shape (len(image_paths),
-        resized_width, resized_width, 3). If images is returned, then images[i] is
+        resized_width, resized_width, 3). When images is returned, images[i] is
         the ndarray of the image at image_paths[i].
     
         Args:
@@ -71,22 +71,24 @@ class Loader:
             shape=(len(image_paths), resized_width, resized_width, 3),
             dtype='float32')
         for i in range(0,len(image_paths)):
-            images[i] = misc.imresize(
-                misc.imread(image_paths[i]), size=(resized_width, resized_width, 3))
+            images[i] = misc.imresize(misc.imread(image_paths[i]),
+                                      size=(resized_width, resized_width, 3))
         return images
 
     def _get_training_images_with_labels(self, resized_width):
         """Given the final width of the training images, this returns a tuple
-        (images, labels). images[i] is a training image, and labels[i] is the label
-        for that image. images will have shape (n, resized_width, resized_width, 3).
-        labels will have shape (n, 8). 
+        (images, labels). images[i] is a training image, and labels[i] is the
+        label for that image. images will have shape
+            (n, resized_width, resized_width, 3).
+        labels will have shape
+            (n, 8). 
     
         Args:
             resized_width -- The desired width of training images.
     
         Returns:
-            (images, labels) -- The tuple of all images and corresponding labels in
-                                the training set. 
+            (images, labels) -- The tuple of all images and corresponding labels
+                                in the training set. 
         """
         label_strings = get_labels()
         label_indexes = {label_strings[i] : i for i in range(0, len(label_strings))}
@@ -96,7 +98,7 @@ class Loader:
     
         for label_string in label_strings:
             image_paths_for_label = get_relative_paths(
-                    TRAINING_DIRECTORY + "/" + label_string, '.jpg')
+                    self.__train_directory + "/" + label_string, '.jpg')
             images_for_label = get_images(image_paths_for_label, resized_width)
             labels = numpy.zeros((images_for_label.shape[0], 8))
             label_index = label_indexes[label_string]
@@ -108,9 +110,7 @@ class Loader:
         return (all_images, all_labels)
 
     def get_shuffled_train_input_iterator(self, batch_size, resized_width):
-        """Given an ndarray of images with shape (a, b, c, 3), this returns an
-        iterator which provides ndarray images of shape (batch_size, 3, b, c)
-        with the elements rearranged accordingly.
+        """
         """
         (image_array, label_array) = get_training_images_with_labels(resized_width)
         shuffled_indexes = numpy.arange(0, image_array.shape[0])
@@ -126,9 +126,7 @@ class Loader:
                    label_array[batch_indexes])
 
     def get_test_input_iterator(self, batch_size, resized_width):
-        """Given an ndarray of images with shape (a, b, c, 3), this returns an
-        iterator which provides ndarray images of shape (batch_size, 3, b, c)
-        with the elements rearranged accordingly.
+        """
         """
         image_paths = get_relative_paths(TEST_DIRECTORY, '.jpg')
         image_array = get_images(test_image_paths, resized_width)
