@@ -29,6 +29,7 @@ class Loader:
         labels = []
         for directory in os.listdir(self.__train_directory):
             labels.append(directory)
+        labels.sort() # Just for deterministic behavior in unit tests.
         return labels
 
     def _get_relative_paths(self, root_directory):
@@ -59,14 +60,15 @@ class Loader:
         return relative_file_paths
 
     def _get_images(self, image_paths):
-        """Given a list of image paths (absolute or relative), and a desired image
-        width, this returns a numpy array with the shape (len(image_paths),
-        resized_width, resized_width, 3). When images is returned, images[i] is
-        the ndarray of the image at image_paths[i].
+        """Given a list of image paths (absolute or relative), and a desired
+        image width, this returns a numpy array with the shape
+        (len(image_paths), resized_width, resized_width, 3). When images is
+        returned, images[i] is the ndarray of the image at image_paths[i].
     
         Args:
-            image_paths -- A list of image paths. Each image whose file is listed
-                           should be in JPEG format with RGB color channels.
+            image_paths -- A list of image paths. Each image whose file is
+                           listed should be in JPEG format with RGB color
+                           channels.
     
         Returns:
             images -- A numpy.ndarray of all the images in image_paths.
@@ -97,9 +99,11 @@ class Loader:
                                 in the training set. 
         """
         label_strings = self._get_labels()
-        label_indexes = {label_strings[i] : i for i in range(0, len(label_strings))}
+        label_indexes = {
+            label_strings[i] : i for i in range(0, len(label_strings))}
     
-        all_images = numpy.zeros((0, self.__resized_width, self.__resized_width, 3))
+        all_images = numpy.zeros((0, self.__resized_width, self.__resized_width,
+                                  3))
         all_labels = numpy.zeros((0, 8))
         
         for label_string in label_strings:
@@ -117,36 +121,36 @@ class Loader:
         
         return (all_images, all_labels)
 
-    def get_shuffled_train_input_iterator(self, batch_size, resized_width):
+    def get_shuffled_train_input_iterator(self):
         """
         """
-        (image_array, label_array) = get_training_images_with_labels(resized_width)
+        (image_array, label_array) = self._get_training_images_with_labels()
         shuffled_indexes = numpy.arange(0, image_array.shape[0])
-        num_iterations = int(math.ceil(float(image_array.shape[0])/batch_size))
-        print(num_iterations)
+        num_iterations = int(math.ceil(float(
+            image_array.shape[0]) / self.__batch_size))
         for i in range(0, num_iterations):
-            current_batch_size = min(batch_size,
-                                     image_array.shape[0] - i*batch_size)
-            batch_start = i*batch_size
-            batch_end = i*batch_size + current_batch_size
+            current_batch_size = min(self.__batch_size,
+                                     image_array.shape[0] - i*self.__batch_size)
+            batch_start = i*self.__batch_size
+            batch_end = i*self.__batch_size + current_batch_size
             batch_indexes = shuffled_indexes[batch_start:batch_end]
             yield (numpy.moveaxis(image_array[batch_indexes], 3, 1),
                    label_array[batch_indexes])
 
-    def get_test_input_iterator(self, batch_size, resized_width):
+    def get_test_input_iterator(self):
         """
         """
-        image_paths = get_relative_paths(TEST_DIRECTORY, '.jpg')
-        image_array = get_images(test_image_paths, resized_width)
+        image_paths = self._get_relative_paths(self.__test_directory)
+        image_array = self._get_images(image_paths)
     
         shuffled_indexes = numpy.arange(0, image_array.shape[0])
-        num_iterations = int(math.ceil(float(image_array.shape[0])/batch_size))
-        print(num_iterations)
+        num_iterations = int(math.ceil(
+            float(image_array.shape[0])/self.__batch_size))
         for i in range(0, num_iterations):
-            current_batch_size = min(batch_size,
-                                     image_array.shape[0] - i*batch_size)
-            batch_start = i*batch_size
-            batch_end = i*batch_size + current_batch_size
+            current_batch_size = min(self.__batch_size,
+                                     image_array.shape[0] - i*self.__batch_size)
+            batch_start = i*self.__batch_size
+            batch_end = i*self.__batch_size + current_batch_size
             batch_indexes = shuffled_indexes[batch_start:batch_end]
             yield numpy.moveaxis(image_array[batch_indexes], 3, 1)
 
