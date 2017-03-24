@@ -7,6 +7,10 @@ import math
 import numpy
 import scipy.misc as misc
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 class Loader:
 
     def __init__(self, batchsize, resizedwidth, traindir, testdir):
@@ -68,14 +72,16 @@ class Loader:
             images -- A numpy.ndarray of all the images in image_paths.
         """
         images = numpy.empty(
-            shape=(len(image_paths), resized_width, resized_width, 3),
+            shape=(len(image_paths), self.__resized_width, self.__resized_width,
+                   3),
             dtype='float32')
         for i in range(0,len(image_paths)):
-            images[i] = misc.imresize(misc.imread(image_paths[i]),
-                                      size=(resized_width, resized_width, 3))
+            images[i] = misc.imresize(
+                    misc.imread(image_paths[i]),
+                    size=(self.__resized_width, self.__resized_width, 3))
         return images
 
-    def _get_training_images_with_labels(self, resized_width):
+    def _get_training_images_with_labels(self):
         """Given the final width of the training images, this returns a tuple
         (images, labels). images[i] is a training image, and labels[i] is the
         label for that image. images will have shape
@@ -90,23 +96,25 @@ class Loader:
             (images, labels) -- The tuple of all images and corresponding labels
                                 in the training set. 
         """
-        label_strings = get_labels()
+        label_strings = self._get_labels()
         label_indexes = {label_strings[i] : i for i in range(0, len(label_strings))}
     
-        all_images = numpy.zeros((0, resized_width, resized_width, 3))
+        all_images = numpy.zeros((0, self.__resized_width, self.__resized_width, 3))
         all_labels = numpy.zeros((0, 8))
-    
+        
         for label_string in label_strings:
-            image_paths_for_label = get_relative_paths(
-                    self.__train_directory + "/" + label_string, '.jpg')
-            images_for_label = get_images(image_paths_for_label, resized_width)
+            image_paths_for_label = self._get_relative_paths(
+                    self.__train_directory + "/" + label_string)
+            image_paths_for_label.sort() # Just for easy unit testing.
+            images_for_label = self._get_images(image_paths_for_label)
+            
             labels = numpy.zeros((images_for_label.shape[0], 8))
             label_index = label_indexes[label_string]
             labels[:, label_index] = 1
-    
-            numpy.append(all_images, images_for_label)
-            numpy.append(all_labels, labels)
-    
+            
+            all_images = numpy.append(all_images, images_for_label, axis=0)
+            all_labels = numpy.append(all_labels, labels, axis=0)
+        
         return (all_images, all_labels)
 
     def get_shuffled_train_input_iterator(self, batch_size, resized_width):
