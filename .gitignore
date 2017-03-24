@@ -1,5 +1,4 @@
-.project
-.pydevproject
-data
-*.pyc
-
+/.project
+/.pydevproject
+/data
+/*.pyc
