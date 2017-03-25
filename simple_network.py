@@ -2,6 +2,9 @@
 # terminology: example, input, output, label, etc. For example, an input could be
 # a scalar, or a vector, or a matrix, or a tensor.
 
+import logging
+import os
+
 import lasagne
 import lasagne.layers as layers
 import lasagne.nonlinearities as nonlinearities
@@ -11,6 +14,10 @@ import theano
 import theano.tensor as tensor
 
 import loader
+
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.StreamHandler())
+logger.setLevel(logging.DEBUG)
 
 # Set the preprocessing parameters.
 image_width = 512
@@ -42,7 +49,8 @@ unaveraged_losses = tensor.sum(tensor.sum(objectives.squared_error(outputs,
                                                                    labels)))
 loss = tensor.sum(unaveraged_losses) / (batch_size*8)
 
-# Compile the train, test, and validation functions
+logger.info('Compiling the train, test, and validation functions.')
+
 network_updates = updates.nesterov_momentum(
     loss_or_grads=loss,
     params=network_parameters,
@@ -55,3 +63,4 @@ train = theano.function(
 validate = theano.function(inputs=[inputs, labels], outputs=[outputs, loss])
 test = theano.function(inputs=[inputs], outputs=[outputs])
 
+logger.info('Finished.')
