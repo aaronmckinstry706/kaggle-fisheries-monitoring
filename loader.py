@@ -1,8 +1,9 @@
 """
 """
 
-import os
 import math
+import os
+import random
 
 import numpy
 import scipy.misc as misc
@@ -18,6 +19,16 @@ class Loader:
         self.__resized_width = resizedwidth
         self.__train_directory = traindir
         self.__test_directory = testdir
+        self.__training_file_paths = self._get_relative_paths(
+            self.__train_directory)
+        
+        num_validation_images = int(math.floor(
+            0.3 * len(self.__training_file_paths)))
+        self.__validation_file_paths = random.sample(self.__training_file_paths,
+                                                     num_validation_images)
+        
+        for path in self.__validation_file_paths:
+            self.__training_file_paths.remove(path)
 
     def _get_labels(self):
         """Gets a list of all directory names in the training directory. Each
@@ -82,21 +93,9 @@ class Loader:
                     misc.imread(image_paths[i]),
                     size=(self.__resized_width, self.__resized_width, 3))
         return images
-
-    def _get_training_images_with_labels(self):
-        """Given the final width of the training images, this returns a tuple
-        (images, labels). images[i] is a training image, and labels[i] is the
-        label for that image. images will have shape
-            (n, resized_width, resized_width, 3).
-        labels will have shape
-            (n, 8). 
     
-        Args:
-            resized_width -- The desired width of training images.
-    
-        Returns:
-            (images, labels) -- The tuple of all images and corresponding labels
-                                in the training set. 
+    def _get_images_with_labels(self, paths):
+        """
         """
         label_strings = self._get_labels()
         label_indexes = {
@@ -107,8 +106,9 @@ class Loader:
         all_labels = numpy.zeros((0, 8))
         
         for label_string in label_strings:
-            image_paths_for_label = self._get_relative_paths(
-                    self.__train_directory + "/" + label_string)
+            image_paths_for_label = [
+                path for path in paths
+                    if label_string in path]
             image_paths_for_label.sort() # Just for easy unit testing.
             images_for_label = self._get_images(image_paths_for_label)
             
@@ -120,6 +120,12 @@ class Loader:
             all_labels = numpy.append(all_labels, labels, axis=0)
         
         return (all_images, all_labels)
+
+    def _get_training_images_with_labels(self):
+        return self._get_images_with_labels(self.__training_file_paths)
+    
+    def _get_validation_images_with_labels(self):
+        return self._get_images_with_labels(self.__validation_file_paths)
 
     def get_shuffled_train_input_iterator(self):
         """
@@ -136,6 +142,20 @@ class Loader:
             batch_indexes = shuffled_indexes[batch_start:batch_end]
             yield (numpy.moveaxis(image_array[batch_indexes], 3, 1),
                    label_array[batch_indexes])
+    
+    def get_validation_input_iterator(self):
+        """
+        """
+        (image_array, label_array) = self._get_validation_images_with_labels()
+        num_iterations = int(math.ceil(float(
+            image_array.shape[0]) / self.__batch_size))
+        for i in range(0, num_iterations):
+            current_batch_size = min(self.__batch_size,
+                                     image_array.shape[0] - i*self.__batch_size)
+            batch_start = i*self.__batch_size
+            batch_end = i*self.__batch_size + current_batch_size
+            yield (numpy.moveaxis(image_array[batch_start:batch_end], 3, 1),
+                   label_array[batch_start:batch_end])
 
     def get_test_input_iterator(self):
         """

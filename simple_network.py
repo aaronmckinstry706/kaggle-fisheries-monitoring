@@ -10,6 +10,7 @@ import lasagne.layers as layers
 import lasagne.nonlinearities as nonlinearities
 import lasagne.objectives as objectives
 import lasagne.updates as updates
+import numpy
 import theano
 import theano.tensor as tensor
 
@@ -23,7 +24,7 @@ logger.setLevel(logging.DEBUG)
 image_width = 512
 
 # Set the learning algorithm parameters.
-learning_rate = 1.0
+learning_rate = theano.shared(numpy.float32(0.01))
 momentum = 0.9
 batch_size = 64
 
@@ -49,7 +50,7 @@ unaveraged_losses = tensor.sum(tensor.sum(objectives.squared_error(outputs,
                                                                    labels)))
 loss = tensor.sum(unaveraged_losses) / (batch_size*8)
 
-logger.info('Compiling the train, test, and validation functions.')
+logger.info('Compiling the train, test, and validation functions...')
 
 network_updates = updates.nesterov_momentum(
     loss_or_grads=loss,
@@ -62,5 +63,7 @@ train = theano.function(
     updates=network_updates)
 validate = theano.function(inputs=[inputs, labels], outputs=[outputs, loss])
 test = theano.function(inputs=[inputs], outputs=[outputs])
+
+
 
 logger.info('Finished.')

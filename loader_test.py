@@ -34,7 +34,8 @@ class LoaderTest(unittest.TestCase):
         del klass.stdoutLoggerHandler
     
     def setUp(self):
-        self.num_train_images = 184
+        self.num_train_images = 184 # This includes the validation images.
+        self.num_validation_images = int(math.floor(184 * 0.3))
         self.num_test_images = 16
         self.batch_size = 3
         self.resized_width = 512
@@ -52,6 +53,10 @@ class LoaderTest(unittest.TestCase):
                          self.data_loader._Loader__train_directory)
         self.assertEqual('unit_test_resources/data/test',
                          self.data_loader._Loader__test_directory)
+        self.assertEqual(self.num_validation_images,
+                         len(self.data_loader._Loader__validation_file_paths))
+        self.assertEqual(self.num_train_images - self.num_validation_images,
+                         len(self.data_loader._Loader__training_file_paths))
     
     def test_get_labels(self):
         labels = self.data_loader._get_labels()
@@ -78,8 +83,10 @@ class LoaderTest(unittest.TestCase):
         self.assertTupleEqual((8, self.resized_width, self.resized_width, 3),
                               images.shape)
 
-    def test_get_training_images_with_labels(self):
-        images_labels = self.data_loader._get_training_images_with_labels()
+    def test_get_images_with_labels(self):
+        images_labels = self.data_loader._get_images_with_labels(
+            self.data_loader._get_relative_paths(
+                self.data_loader._Loader__train_directory))
         images = images_labels[0]
         labels = images_labels[1]
         
@@ -87,9 +94,10 @@ class LoaderTest(unittest.TestCase):
             'unit_test_resources/data/train/DOL/img_00165.jpg')
         
         # There are 184 total images in the unit_test_resources directory tree.
-        self.assertTupleEqual((184, self.resized_width, self.resized_width, 3),
-                              images.shape)
-        self.assertTupleEqual((184, 8), labels.shape)
+        self.assertTupleEqual(
+            (self.num_train_images, self.resized_width, self.resized_width, 3),
+            images.shape)
+        self.assertTupleEqual((self.num_train_images, 8), labels.shape)
         self.assertTrue(numpy.array_equal(expected_image, images[0]))
         self.assertTrue(numpy.array_equal(numpy.array([1,0,0,0,0,0,0,0]),
                                           labels[0]))
@@ -100,7 +108,8 @@ class LoaderTest(unittest.TestCase):
         training_iterator = self.data_loader.get_shuffled_train_input_iterator()
         num_iterations = 0
         expected_num_full_iterations = math.floor(
-            self.num_train_images/self.batch_size)
+            (self.num_train_images - self.num_validation_images) \
+            / self.batch_size)
         
         for images_labels in training_iterator:
             images = images_labels[0]
@@ -119,7 +128,34 @@ class LoaderTest(unittest.TestCase):
             num_iterations = num_iterations + 1
         
         expected_num_iterations = math.ceil(
-            float(self.num_train_images) / self.batch_size)
+            float(self.num_train_images - self.num_validation_images) \
+            / self.batch_size)
+        self.assertEqual(expected_num_iterations, num_iterations)
+    
+    def test_get_validation_input_iterator(self):
+        validation_iterator = self.data_loader.get_validation_input_iterator()
+        num_iterations = 0
+        expected_num_full_iterations = math.floor(
+            self.num_validation_images / self.batch_size)
+        
+        for images_labels in validation_iterator:
+            images = images_labels[0]
+            labels = images_labels[1]
+            
+            current_batch_size = self.batch_size
+            if num_iterations == expected_num_full_iterations:
+                current_batch_size = (
+                    self.num_validation_images % self.batch_size)
+            
+            self.assertEqual(
+                (current_batch_size, 3, self.resized_width, self.resized_width),
+                images.shape)
+            self.assertEqual((current_batch_size, 8), labels.shape)
+            
+            num_iterations = num_iterations + 1
+        
+        expected_num_iterations = math.ceil(
+            float(self.num_validation_images) / self.batch_size)
         self.assertEqual(expected_num_iterations, num_iterations)
     
     def test_get_test_input_iterator(self):
