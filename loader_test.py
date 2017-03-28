@@ -66,22 +66,29 @@ class LoaderTest(unittest.TestCase):
             ["DOL", "LAG"])
     
     def test_get_relative_paths(self):
-        relative_paths_alb = self.data_loader._get_relative_paths(
+        relative_paths = self.data_loader._get_relative_paths(
             'unit_test_resources/data/train')
-        relative_paths_alb.sort()
-        self.assertTrue('img_00165.jpg' in relative_paths_alb[0])
-        self.assertTrue('img_00325.jpg' in relative_paths_alb[1])
-        self.assertTrue('img_00348.jpg' in relative_paths_alb[2])
+        self.assertEqual(self.num_train_images, len(relative_paths))
+        relative_paths.sort()
+        self.assertTrue('img_00165.jpg' in relative_paths[0])
+        self.assertTrue('img_00325.jpg' in relative_paths[1])
+        self.assertTrue('img_00348.jpg' in relative_paths[2])
     
     def test_get_images(self):
         relative_paths = self.data_loader._get_relative_paths(
             'unit_test_resources/data/train')
         relative_paths.sort()
-        self.assertEqual(184, len(relative_paths))
-        images = self.data_loader._get_images(relative_paths[:4]
-                                              + relative_paths[-4:])
+        images = numpy.zeros((8, self.resized_width, self.resized_width, 3),
+                             dtype='float32')
+        self.data_loader._get_images(relative_paths[:4] + relative_paths[-4:],
+                                     images, 0)
         self.assertTupleEqual((8, self.resized_width, self.resized_width, 3),
                               images.shape)
+        self.assertEqual(numpy.float32, images.dtype)
+        
+        expected_image = self.readAndResizeImage(
+            'unit_test_resources/data/train/DOL/img_00165.jpg')
+        self.assertTrue(numpy.array_equal(images[0], expected_image))
 
     def test_get_images_with_labels(self):
         images_labels = self.data_loader._get_images_with_labels(
@@ -103,6 +110,8 @@ class LoaderTest(unittest.TestCase):
                                           labels[0]))
         self.assertTrue(numpy.array_equal(numpy.array([0,1,0,0,0,0,0,0]),
                                           labels[-1]))
+        self.assertEqual(numpy.float32, images.dtype)
+        self.assertEqual(numpy.float32, labels.dtype)
     
     def test_get_shuffled_train_input_iterator(self):
         training_iterator = self.data_loader.get_shuffled_train_input_iterator()
@@ -114,6 +123,9 @@ class LoaderTest(unittest.TestCase):
         for images_labels in training_iterator:
             images = images_labels[0]
             labels = images_labels[1]
+            
+            self.assertEqual(numpy.float32, images.dtype)
+            self.assertEqual(numpy.float32, labels.dtype)
             
             current_batch_size = self.batch_size
             if num_iterations == expected_num_full_iterations:
@@ -142,6 +154,9 @@ class LoaderTest(unittest.TestCase):
             images = images_labels[0]
             labels = images_labels[1]
             
+            self.assertEqual(numpy.float32, images.dtype)
+            self.assertEqual(numpy.float32, labels.dtype)
+            
             current_batch_size = self.batch_size
             if num_iterations == expected_num_full_iterations:
                 current_batch_size = (
@@ -165,6 +180,8 @@ class LoaderTest(unittest.TestCase):
             self.num_test_images / self.batch_size)
         
         for images in test_iterator:
+            self.assertEqual(numpy.float32, images.dtype)
+            
             current_batch_size = self.batch_size
             if num_iterations == expected_num_full_iterations:
                 current_batch_size = (

@@ -26,7 +26,7 @@ image_width = 512
 # Set the learning algorithm parameters.
 learning_rate = theano.shared(numpy.float32(0.01))
 momentum = 0.9
-batch_size = 64
+batch_size = 4
 
 # Set some architectural parameter invariants.
 num_classes = 8
@@ -37,17 +37,14 @@ labels = tensor.matrix(name='labels')
 
 input_layer = layers.InputLayer(shape=(None, 3, image_width, image_width),
                                 input_var=inputs, name='input_layer')
-input_layer_reshaped = layers.ReshapeLayer(incoming=input_layer,
-                                           shape=(image_width*image_width*3,),
-                                           name='input_layer_reshaped')
 output_layer = layers.DenseLayer(
-    incoming=input_layer_reshaped, num_units=8,
+    incoming=input_layer, num_units=num_classes,
     nonlinearity=nonlinearities.softmax, name='output_layer')
 
 network_parameters = layers.get_all_params(output_layer)
 outputs = layers.get_output(output_layer)
-unaveraged_losses = tensor.sum(tensor.sum(objectives.squared_error(outputs,
-                                                                   labels)))
+unaveraged_losses = tensor.sum(tensor.sum(objectives.categorical_crossentropy(
+    outputs, labels)))
 loss = tensor.sum(unaveraged_losses) / (batch_size*8)
 
 logger.info('Compiling the train, test, and validation functions...')
@@ -64,6 +61,37 @@ train = theano.function(
 validate = theano.function(inputs=[inputs, labels], outputs=[outputs, loss])
 test = theano.function(inputs=[inputs], outputs=[outputs])
 
+logger.info('Initializing data loader...')
 
+data_loader = loader.Loader(batch_size, image_width,
+                            'data/train',
+                            'data/test')
+
+logger.info('Training model...')
+
+for i in range(0,100):
+    train_iterator = data_loader.get_shuffled_train_input_iterator()
+    avg_batch_train_loss = 0
+    num_iterations = 0
+    for images_labels in train_iterator:
+        outputs, training_loss = train(images_labels[0], images_labels[1])
+        avg_batch_train_loss += training_loss
+        num_iterations += 1
+    avg_batch_train_loss /= num_iterations
+    
+    validation_iterator = data_loader.get_validation_input_iterator()
+    avg_batch_validate_loss = 0
+    num_iterations = 0
+    for images_labels in validation_iterator:
+        outputs, validation_loss = validate(images_labels[0], images_labels[1])
+        avg_batch_validate_loss += validation_loss
+        num_iterations += 1
+    avg_batch_validate_loss /= num_iterations
+    
+    print('Iteration ' + str(i) + ': ')
+    print('    Average batch loss over validation set: '
+          + str(avg_batch_validate_loss))
+    print('    Average batch loss over training set: '
+          + str(avg_batch_train_loss))
 
 logger.info('Finished.')

@@ -29,6 +29,10 @@ class Loader:
         
         for path in self.__validation_file_paths:
             self.__training_file_paths.remove(path)
+        
+        self.training_data = None
+        self.validation_data = None
+        self.testing_data = None
 
     def _get_labels(self):
         """Gets a list of all directory names in the training directory. Each
@@ -70,26 +74,11 @@ class Loader:
             relative_file_paths.extend(valid_file_paths)
         return relative_file_paths
 
-    def _get_images(self, image_paths):
-        """Given a list of image paths (absolute or relative), and a desired
-        image width, this returns a numpy array with the shape
-        (len(image_paths), resized_width, resized_width, 3). When images is
-        returned, images[i] is the ndarray of the image at image_paths[i].
-    
-        Args:
-            image_paths -- A list of image paths. Each image whose file is
-                           listed should be in JPEG format with RGB color
-                           channels.
-    
-        Returns:
-            images -- A numpy.ndarray of all the images in image_paths.
+    def _get_images(self, image_paths, images, offset):
         """
-        images = numpy.empty(
-            shape=(len(image_paths), self.__resized_width, self.__resized_width,
-                   3),
-            dtype='float32')
+        """
         for i in range(0,len(image_paths)):
-            images[i] = misc.imresize(
+            images[i + offset] = misc.imresize(
                     misc.imread(image_paths[i]),
                     size=(self.__resized_width, self.__resized_width, 3))
         return images
@@ -101,23 +90,24 @@ class Loader:
         label_indexes = {
             label_strings[i] : i for i in range(0, len(label_strings))}
     
-        all_images = numpy.zeros((0, self.__resized_width, self.__resized_width,
-                                  3))
-        all_labels = numpy.zeros((0, 8))
+        all_images = numpy.zeros((len(paths), self.__resized_width,
+                                  self.__resized_width, 3),
+                                 dtype='float32')
+        all_labels = numpy.zeros((len(paths), 8), dtype='float32')
         
+        offset = 0
         for label_string in label_strings:
             image_paths_for_label = [
                 path for path in paths
                     if label_string in path]
-            image_paths_for_label.sort() # Just for easy unit testing.
-            images_for_label = self._get_images(image_paths_for_label)
+            image_paths_for_label.sort() # Just for deterministic unit tests.
+            self._get_images(image_paths_for_label, all_images, offset)
             
-            labels = numpy.zeros((images_for_label.shape[0], 8))
             label_index = label_indexes[label_string]
-            labels[:, label_index] = 1
+            all_labels[
+                offset:(offset + len(image_paths_for_label)), label_index] = 1.0
             
-            all_images = numpy.append(all_images, images_for_label, axis=0)
-            all_labels = numpy.append(all_labels, labels, axis=0)
+            offset += len(image_paths_for_label)
         
         return (all_images, all_labels)
 
@@ -130,7 +120,12 @@ class Loader:
     def get_shuffled_train_input_iterator(self):
         """
         """
-        (image_array, label_array) = self._get_training_images_with_labels()
+        if self.training_data == None:
+            (image_array, label_array) = self._get_training_images_with_labels()
+            self.training_data = (image_array, label_array)
+        else:
+            (image_array, label_array) = self.training_data
+        
         shuffled_indexes = numpy.arange(0, image_array.shape[0])
         num_iterations = int(math.ceil(float(
             image_array.shape[0]) / self.__batch_size))
@@ -146,7 +141,12 @@ class Loader:
     def get_validation_input_iterator(self):
         """
         """
-        (image_array, label_array) = self._get_validation_images_with_labels()
+        if self.validation_data == None:
+            (image_array, label_array) = self._get_validation_images_with_labels()
+            self.validation_data = (image_array, label_array)
+        else:
+            (image_array, label_array) = self.validation_data
+        
         num_iterations = int(math.ceil(float(
             image_array.shape[0]) / self.__batch_size))
         for i in range(0, num_iterations):
@@ -160,8 +160,15 @@ class Loader:
     def get_test_input_iterator(self):
         """
         """
-        image_paths = self._get_relative_paths(self.__test_directory)
-        image_array = self._get_images(image_paths)
+        if self.testing_data == None:
+            image_paths = self._get_relative_paths(self.__test_directory)
+            image_array = numpy.zeros(
+                (len(image_paths), self.__resized_width, self.__resized_width, 3),
+                dtype='float32')
+            self._get_images(image_paths, image_array, offset=0)
+            self.testing_data = image_array
+        else:
+            image_array = self.testing_data
     
         shuffled_indexes = numpy.arange(0, image_array.shape[0])
         num_iterations = int(math.ceil(
