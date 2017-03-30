@@ -29,7 +29,7 @@ learning_rate = theano.shared(numpy.float32(0.01))
 momentum = 0.9
 batch_size = 64
 
-# Set some architectural parameter invariants.
+# Set architectural parameter invariants.
 num_classes = 8
 
 # Define the symbolic variables and expressions for network computation.
@@ -105,7 +105,7 @@ for i in range(0, num_epochs):
     
     epoch_end_time = time.time()
     
-    print('Iteration ' + str(i) + ': ')
+    print('Epoch ' + str(i) + ': ')
     print('    Average batch batch_crossentropy_loss over validation set: '
           + str(avg_batch_validate_loss) + '.')
     print('    Average batch batch_crossentropy_loss over training set: '
