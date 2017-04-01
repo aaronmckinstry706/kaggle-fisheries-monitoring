@@ -87,7 +87,7 @@ data_loader.get_test_input_iterator()
 
 logger.info('Training model...')
 
-num_epochs = 100
+num_epochs = 1000
 
 for i in range(0, num_epochs):
     epoch_start_time = time.time()
@@ -112,11 +112,12 @@ for i in range(0, num_epochs):
     
     epoch_end_time = time.time()
     
-    print('Epoch ' + str(i) + ': ')
-    print('    Average batch batch_crossentropy_loss over validation set: '
-          + str(avg_validate_loss) + '.')
-    print('    Average batch batch_crossentropy_loss over training set: '
-          + str(avg_batch_train_loss) + '.')
-    print('    Time: ' + str(epoch_end_time - epoch_start_time) + ' seconds.')
+    logger.info('Epoch ' + str(i) + ': '
+                + '    Average crossentropy loss over validation set: '
+                + str(avg_validate_loss) + '.'
+                + '    Average batch batch_crossentropy_loss over training set:'
+                + ' ' + str(avg_batch_train_loss) + '.'
+                + '    Time: ' + str(epoch_end_time - epoch_start_time)
+                + ' seconds.')
 
 logger.info('Finished.')
