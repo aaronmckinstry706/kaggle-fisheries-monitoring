@@ -2,8 +2,10 @@
 # terminology: example, input, output, label, etc. For example, an input could be
 # a scalar, or a vector, or a matrix, or a tensor.
 
+import datetime
 import logging
 import os
+import sys
 import time
 
 import lasagne
@@ -17,17 +19,23 @@ import theano.tensor as tensor
 
 import loader
 
+def getParameterDescriptionString(**kwargs):
+    return str(kwargs)
+
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.StreamHandler())
-logger.setLevel(logging.DEBUG)
+logger.addHandler(logging.FileHandler('logs/network_training.log'))
+logger.setLevel(logging.INFO)
+logger.info('\nStarting run at ' + str(datetime.datetime.now()) + '.')
 
 # Set the preprocessing parameters.
-image_width = 256
+image_width = 512
 
 # Set the learning algorithm parameters.
 learning_rate = theano.shared(numpy.float32(0.01))
 momentum = 0.9
 batch_size = 64
+weight_decay = 0.0
 
 # Set architectural parameter invariants.
 num_classes = 8
@@ -40,22 +48,43 @@ input_layer = layers.InputLayer(shape=(None, 3, image_width, image_width),
                                 input_var=inputs)
 
 hidden_layer_one_no_batchnorm = layers.Conv2DLayer(incoming=input_layer,
-                                                   num_filters=64,
+                                                   num_filters=8,
                                                    filter_size=(3,3),
-                                                   pad='same')
+                                                   stride=(3,3),
+                                                   pad='valid')
 hidden_layer_one = layers.batch_norm(hidden_layer_one_no_batchnorm)
 
-output_layer = layers.DenseLayer(
-    incoming=hidden_layer_one, num_units=num_classes,
-    nonlinearity=nonlinearities.softmax)
+hidden_layer_two_no_batchnorm = layers.Conv2DLayer(incoming=hidden_layer_one,
+                                                   num_filters=16,
+                                                   filter_size=(3,3),
+                                                   stride=(3,3),
+                                                   pad='valid')
+hidden_layer_two = layers.batch_norm(hidden_layer_one)
+
+hidden_layer_three_no_batchnorm = layers.Conv2DLayer(incoming=hidden_layer_two,
+                                                     num_filters=8,
+                                                     filter_size=(3,3),
+                                                     pad='same')
+hidden_layer_three = layers.batch_norm(hidden_layer_three_no_batchnorm)
+
+output_map_pooling_layer = layers.GlobalPoolLayer(incoming=hidden_layer_three,
+                                                  pool_function=tensor.max)
+
+output_layer = layers.NonlinearityLayer(incoming=output_map_pooling_layer,
+                                        nonlinearity=nonlinearities.softmax)
 
 train_outputs = layers.get_output(output_layer, deterministic=False)
 test_outputs = layers.get_output(output_layer, deterministic=True)
 
 network_parameters = layers.get_all_params(output_layer, trainable=True)
 
-train_loss = tensor.sum(
+train_loss_without_regularization = tensor.sum(
     objectives.categorical_crossentropy(train_outputs, labels)) / batch_size
+train_loss = train_loss_without_regularization
+for trainable_layer_parameters in network_parameters:
+    current_decay_term = tensor.sum(
+        trainable_layer_parameters*trainable_layer_parameters)
+    train_loss = train_loss + weight_decay*current_decay_term
 validation_loss = objectives.categorical_crossentropy(test_outputs, labels)
 
 network_updates = updates.nesterov_momentum(
@@ -87,7 +116,47 @@ data_loader.get_test_input_iterator()
 
 logger.info('Training model...')
 
-num_epochs = 1000
+num_epochs = 600
+num_allowed_iterations_with_unchanging_validation_loss = 10
+previous_validate_loss = [
+    sys.float_info.max for i in range(
+        0, num_allowed_iterations_with_unchanging_validation_loss)]
+
+logger.info('Parameters: ' + getParameterDescriptionString(
+    image_width=image_width,
+    learning_rate=learning_rate.get_value(),
+    batch_size=batch_size,
+    weight_decay=weight_decay))
+
+logger.info('Architecture:' + """
+    input_layer = layers.InputLayer(shape=(None, 3, image_width, image_width),
+                                    input_var=inputs)
+    
+    hidden_layer_one_no_batchnorm = layers.Conv2DLayer(incoming=input_layer,
+                                                       num_filters=8,
+                                                       filter_size=(3,3),
+                                                       stride=(3,3),
+                                                       pad='valid')
+    hidden_layer_one = layers.batch_norm(hidden_layer_one_no_batchnorm)
+    
+    hidden_layer_two_no_batchnorm = layers.Conv2DLayer(incoming=hidden_layer_one,
+                                                       num_filters=16,
+                                                       filter_size=(3,3),
+                                                       stride=(3,3),
+                                                       pad='valid')
+    hidden_layer_two = layers.batch_norm(hidden_layer_one)
+    
+    hidden_layer_three_no_batchnorm = layers.Conv2DLayer(incoming=hidden_layer_two,
+                                                         num_filters=8,
+                                                         filter_size=(3,3),
+                                                         pad='same')
+    hidden_layer_three = layers.batch_norm(hidden_layer_three_no_batchnorm)
+    
+    output_map_pooling_layer = layers.GlobalPoolLayer(incoming=hidden_layer_three,
+                                                      pool_function=tensor.max)
+    
+    output_layer = layers.NonlinearityLayer(incoming=output_map_pooling_layer,
+                                            nonlinearity=nonlinearities.softmax)""")
 
 for i in range(0, num_epochs):
     epoch_start_time = time.time()
@@ -112,12 +181,23 @@ for i in range(0, num_epochs):
     
     epoch_end_time = time.time()
     
-    logger.info('Epoch ' + str(i) + ': '
-                + '    Average crossentropy loss over validation set: '
-                + str(avg_validate_loss) + '.'
-                + '    Average batch batch_crossentropy_loss over training set:'
-                + ' ' + str(avg_batch_train_loss) + '.'
-                + '    Time: ' + str(epoch_end_time - epoch_start_time)
+    previous_validate_loss.pop(0)
+    previous_validate_loss.append(avg_validate_loss)
+    if len(set(previous_validate_loss)) == 1:
+        logger.info('Validation loss remained identical for '
+                    + num_allowed_iterations_with_unchanging_validation_loss
+                    + ' iterations. Changing learning rate from '
+                    + str(learning_rate.get_value()) + ' to '
+                    + str(learning_rate.get_value()/10.0) + '.')
+        learning_rate.set_value(learning_rate.get_value()/10.0)
+    
+    logger.info('Epoch ' + str(i) + ':\n'
+                + '    Crossentropy loss over validation set: '
+                + str(avg_validate_loss) + '.\n'
+                + '    Average batch crossentropy loss over training set:'
+                + ' ' + str(avg_batch_train_loss) + '.\n'
+                + '    Time: '
+                + str(int(round(epoch_end_time - epoch_start_time)))
                 + ' seconds.')
 
-logger.info('Finished.')
+logger.info('Finishing run at ' + str(datetime.datetime.now()) + '.')
