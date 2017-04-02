@@ -48,15 +48,15 @@ input_layer = layers.InputLayer(shape=(None, 3, image_width, image_width),
                                 input_var=inputs)
 
 hidden_layer_one_no_batchnorm = layers.Conv2DLayer(incoming=input_layer,
-                                                   num_filters=8,
-                                                   filter_size=(3,3),
+                                                   num_filters=16,
+                                                   filter_size=(5,5),
                                                    stride=(3,3),
                                                    pad='valid')
 hidden_layer_one = layers.batch_norm(hidden_layer_one_no_batchnorm)
 
 hidden_layer_two_no_batchnorm = layers.Conv2DLayer(incoming=hidden_layer_one,
-                                                   num_filters=16,
-                                                   filter_size=(3,3),
+                                                   num_filters=32,
+                                                   filter_size=(5,5),
                                                    stride=(3,3),
                                                    pad='valid')
 hidden_layer_two = layers.batch_norm(hidden_layer_one)
@@ -106,7 +106,8 @@ logger.info('Initializing data loader...')
 
 data_loader = loader.Loader(batch_size, image_width,
                             'data/train',
-                            'data/test')
+                            'data/test',
+                            0.1)
 
 logger.info('Pre-loading data...')
 
@@ -133,15 +134,15 @@ logger.info('Architecture:' + """
                                     input_var=inputs)
     
     hidden_layer_one_no_batchnorm = layers.Conv2DLayer(incoming=input_layer,
-                                                       num_filters=8,
-                                                       filter_size=(3,3),
+                                                       num_filters=16,
+                                                       filter_size=(5,5),
                                                        stride=(3,3),
                                                        pad='valid')
     hidden_layer_one = layers.batch_norm(hidden_layer_one_no_batchnorm)
     
     hidden_layer_two_no_batchnorm = layers.Conv2DLayer(incoming=hidden_layer_one,
-                                                       num_filters=16,
-                                                       filter_size=(3,3),
+                                                       num_filters=32,
+                                                       filter_size=(5,5),
                                                        stride=(3,3),
                                                        pad='valid')
     hidden_layer_two = layers.batch_norm(hidden_layer_one)

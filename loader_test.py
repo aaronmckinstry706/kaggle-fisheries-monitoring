@@ -34,8 +34,9 @@ class LoaderTest(unittest.TestCase):
         del klass.stdoutLoggerHandler
     
     def setUp(self):
+        self.split_fraction = 0.1
         self.num_train_images = 184 # This includes the validation images.
-        self.num_validation_images = int(math.floor(184 * 0.3))
+        self.num_validation_images = int(math.floor(184 * self.split_fraction))
         self.num_test_images = 16
         self.batch_size = 3
         self.resized_width = 512
@@ -43,7 +44,8 @@ class LoaderTest(unittest.TestCase):
             self.batch_size,
             self.resized_width,
             'unit_test_resources/data/train',
-            'unit_test_resources/data/test')
+            'unit_test_resources/data/test',
+            self.split_fraction)
     
     def test_init(self):
         self.assertEqual(self.batch_size, self.data_loader._Loader__batch_size)

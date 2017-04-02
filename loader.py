@@ -14,16 +14,19 @@ logger = logging.getLogger(__name__)
 
 class Loader:
 
-    def __init__(self, batchsize, resizedwidth, traindir, testdir):
+    def __init__(self, batchsize, resizedwidth, traindir, testdir,
+                 split_fraction):
         self.__batch_size = batchsize
         self.__resized_width = resizedwidth
         self.__train_directory = traindir
         self.__test_directory = testdir
+        self.__split_fraction = split_fraction
+        
         self.__training_file_paths = self._get_relative_paths(
             self.__train_directory)
         
         num_validation_images = int(math.floor(
-            0.3 * len(self.__training_file_paths)))
+            self.__split_fraction * len(self.__training_file_paths)))
         self.__validation_file_paths = random.sample(self.__training_file_paths,
                                                      num_validation_images)
         
