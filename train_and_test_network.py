@@ -19,8 +19,17 @@ import theano.tensor as tensor
 
 import loader
 
-def getParameterDescriptionString(**kwargs):
+def get_param_description_str(**kwargs):
     return str(kwargs)
+
+def get_learning_rate(
+        training_loss_history,
+        validation_loss_history,
+        learning_rate):
+    if len(training_loss_history) % 100 == 0:
+        return numpy.float32(learning_rate/10.0)
+    else:
+        return numpy.float32(learning_rate)
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.StreamHandler())
@@ -32,10 +41,10 @@ logger.info('\nStarting run at ' + str(datetime.datetime.now()) + '.')
 image_width = 512
 
 # Set the learning algorithm parameters.
-learning_rate = theano.shared(numpy.float32(0.01))
+learning_rate = theano.shared(numpy.float32(0.001))
 momentum = 0.9
 batch_size = 64
-weight_decay = 0.0
+weight_decay = 0.0001
 
 # Set architectural parameter invariants.
 num_classes = 8
@@ -47,25 +56,31 @@ labels = tensor.matrix(name='labels')
 input_layer = layers.InputLayer(shape=(None, 3, image_width, image_width),
                                 input_var=inputs)
 
-hidden_layer_one_no_batchnorm = layers.Conv2DLayer(incoming=input_layer,
-                                                   num_filters=16,
-                                                   filter_size=(5,5),
-                                                   stride=(3,3),
-                                                   pad='valid')
-hidden_layer_one = layers.batch_norm(hidden_layer_one_no_batchnorm)
+hidden_layer_one = layers.Conv2DLayer(incoming=input_layer,
+                                      num_filters=16,
+                                      filter_size=(3,3),
+                                      stride=(2,2),
+                                      pad='same')
+hidden_layer_one = layers.batch_norm(hidden_layer_one)
 
-hidden_layer_two_no_batchnorm = layers.Conv2DLayer(incoming=hidden_layer_one,
-                                                   num_filters=32,
-                                                   filter_size=(5,5),
-                                                   stride=(3,3),
-                                                   pad='valid')
-hidden_layer_two = layers.batch_norm(hidden_layer_one)
+hidden_layer_two = layers.Conv2DLayer(incoming=hidden_layer_one,
+                                      num_filters=32,
+                                      filter_size=(3,3),
+                                      stride=(2,2),
+                                      pad='same')
+hidden_layer_two = layers.batch_norm(hidden_layer_two)
 
-hidden_layer_three_no_batchnorm = layers.Conv2DLayer(incoming=hidden_layer_two,
-                                                     num_filters=8,
-                                                     filter_size=(3,3),
-                                                     pad='same')
-hidden_layer_three = layers.batch_norm(hidden_layer_three_no_batchnorm)
+hidden_layer_three = layers.Conv2DLayer(incoming=hidden_layer_two,
+                                        num_filters=64,
+                                        filter_size=(3,3),
+                                        pad='same')
+hidden_layer_three = layers.batch_norm(hidden_layer_three)
+
+hidden_layer_three = layers.Conv2DLayer(incoming=hidden_layer_two,
+                                        num_filters=8,
+                                        filter_size=(3,3),
+                                        pad='same')
+hidden_layer_three = layers.batch_norm(hidden_layer_three)
 
 output_map_pooling_layer = layers.GlobalPoolLayer(incoming=hidden_layer_three,
                                                   pool_function=tensor.max)
@@ -117,47 +132,17 @@ data_loader.get_test_input_iterator()
 
 logger.info('Training model...')
 
-num_epochs = 600
-num_allowed_iterations_with_unchanging_validation_loss = 10
-previous_validate_loss = [
-    sys.float_info.max for i in range(
-        0, num_allowed_iterations_with_unchanging_validation_loss)]
+num_epochs = 300
+previous_validate_losses = []
+previous_train_losses = []
+previous_learning_rates = [(0,learning_rate.get_value())]
+previous_learning_rate = None
 
-logger.info('Parameters: ' + getParameterDescriptionString(
+logger.info(get_param_description_str(
     image_width=image_width,
     learning_rate=learning_rate.get_value(),
     batch_size=batch_size,
     weight_decay=weight_decay))
-
-logger.info('Architecture:' + """
-    input_layer = layers.InputLayer(shape=(None, 3, image_width, image_width),
-                                    input_var=inputs)
-    
-    hidden_layer_one_no_batchnorm = layers.Conv2DLayer(incoming=input_layer,
-                                                       num_filters=16,
-                                                       filter_size=(5,5),
-                                                       stride=(3,3),
-                                                       pad='valid')
-    hidden_layer_one = layers.batch_norm(hidden_layer_one_no_batchnorm)
-    
-    hidden_layer_two_no_batchnorm = layers.Conv2DLayer(incoming=hidden_layer_one,
-                                                       num_filters=32,
-                                                       filter_size=(5,5),
-                                                       stride=(3,3),
-                                                       pad='valid')
-    hidden_layer_two = layers.batch_norm(hidden_layer_one)
-    
-    hidden_layer_three_no_batchnorm = layers.Conv2DLayer(incoming=hidden_layer_two,
-                                                         num_filters=8,
-                                                         filter_size=(3,3),
-                                                         pad='same')
-    hidden_layer_three = layers.batch_norm(hidden_layer_three_no_batchnorm)
-    
-    output_map_pooling_layer = layers.GlobalPoolLayer(incoming=hidden_layer_three,
-                                                      pool_function=tensor.max)
-    
-    output_layer = layers.NonlinearityLayer(incoming=output_map_pooling_layer,
-                                            nonlinearity=nonlinearities.softmax)""")
 
 for i in range(0, num_epochs):
     epoch_start_time = time.time()
@@ -182,16 +167,12 @@ for i in range(0, num_epochs):
     
     epoch_end_time = time.time()
     
-    previous_validate_loss.pop(0)
-    previous_validate_loss.append(avg_validate_loss)
-    if len(set(previous_validate_loss)) == 1:
-        logger.info('Validation loss remained identical for '
-                    + num_allowed_iterations_with_unchanging_validation_loss
-                    + ' iterations. Changing learning rate from '
-                    + str(learning_rate.get_value()) + ' to '
-                    + str(learning_rate.get_value()/10.0) + '.')
-        learning_rate.set_value(learning_rate.get_value()/10.0)
-    
+    previous_validate_losses.append(avg_validate_loss)
+    previous_train_losses.append(avg_batch_train_loss)
+    previous_learning_rate = learning_rate.get_value()
+    learning_rate.set_value(get_learning_rate(previous_train_losses,
+                                              previous_validate_losses,
+                                              learning_rate.get_value()))
     logger.info('Epoch ' + str(i) + ':\n'
                 + '    Crossentropy loss over validation set: '
                 + str(avg_validate_loss) + '.\n'
@@ -200,5 +181,16 @@ for i in range(0, num_epochs):
                 + '    Time: '
                 + str(int(round(epoch_end_time - epoch_start_time)))
                 + ' seconds.')
+    
+    if previous_learning_rate != learning_rate.get_value() :
+        logger.info('Changing learning rate from '
+                    + str(previous_learning_rate) + ' to '
+                    + str(learning_rate.get_value()) + '.')
+        previous_learning_rates.append((i+1, learning_rate.get_value()))
 
+logger.info('Average batch training loss per epoch: '
+            + str(previous_validate_losses))
+logger.info('Validation loss per epoch: '
+            + str(previous_train_losses))
+logger.info('Learning rate schedule: ' + str(previous_learning_rates))
 logger.info('Finishing run at ' + str(datetime.datetime.now()) + '.')

@@ -27,9 +27,9 @@ class Loader:
         
         num_validation_images = int(math.floor(
             self.__split_fraction * len(self.__training_file_paths)))
+        
         self.__validation_file_paths = random.sample(self.__training_file_paths,
                                                      num_validation_images)
-        
         for path in self.__validation_file_paths:
             self.__training_file_paths.remove(path)
         
