@@ -1,10 +1,16 @@
 import unittest
 import utilities
 
+import os
+
 class UtilitiesTest_PathReaders(unittest.TestCase):
     
+    def setUp(self):
+        unittest.TestCase.setUp(self)
+        self.training_directory = 'unit_test_resources/data/train'
+    
     def test_get_labels(self):
-        labels = utilities.get_labels('unit_test_resources/data/train')
+        labels = utilities.get_labels(self.training_directory)
         labels.sort()
         self.assertListEqual(
             labels,
@@ -12,7 +18,7 @@ class UtilitiesTest_PathReaders(unittest.TestCase):
     
     def test_get_relative_paths(self):
         relative_paths = utilities.get_relative_paths(
-            'unit_test_resources/data/train')
+            self.training_directory)
         self.assertEqual(184, len(relative_paths))
         relative_paths.sort()
         self.assertTrue('img_00165.jpg' in relative_paths[0])
@@ -21,28 +27,34 @@ class UtilitiesTest_PathReaders(unittest.TestCase):
 
 class UtilitiesTest_FileMovers(unittest.TestCase):
     
+    def setUp(self):
+        unittest.TestCase.setUp(self)
+        self.training_directory = 'unit_test_resources/data/train'
+        self.validation_directory = 'unit_test_resources/data/validation'
+    
     def test00_separate_validation_set(self):
-        utilities.separate_validation_set('unit_test_resources/data/train',
-                                          'unit_test_resources/data/validation',
+        utilities.separate_validation_set(self.training_directory,
+                                          self.validation_directory,
                                           1.0)
         self.assertEqual(
             0,
-            len(utilities.get_relative_paths('unit_test_resources/data/train')))
+            len(utilities.get_relative_paths(self.training_directory)))
         self.assertEqual(
             184,
             len(
                 utilities.get_relative_paths(
-                    'unit_test_resources/data/validation')))
+                    self.validation_directory)))
     
     def test01_recombine_validation_and_training(self):
         utilities.recombine_validation_and_training(
-            'unit_test_resources/data/validation',
-            'unit_test_resources/data/train')
+            self.validation_directory,
+            self.training_directory)
         self.assertEqual(
             184,
-            len(utilities.get_relative_paths('unit_test_resources/data/train')))
+            len(utilities.get_relative_paths(self.training_directory)))
         self.assertEqual(
             0,
             len(
                 utilities.get_relative_paths(
-                    'unit_test_resources/data/validation')))
+                    self.validation_directory)))
+
