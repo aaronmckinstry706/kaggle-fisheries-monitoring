@@ -8,6 +8,7 @@ import os
 import sys
 import time
 
+import keras.preprocessing.image
 import lasagne
 import lasagne.layers as layers
 import lasagne.nonlinearities as nonlinearities
@@ -17,7 +18,8 @@ import numpy
 import theano
 import theano.tensor as tensor
 
-import loader
+import utilities
+import preprocessing
 
 def get_param_description_str(**kwargs):
     return str(kwargs)
@@ -33,9 +35,15 @@ def get_learning_rate(
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.StreamHandler())
-logger.addHandler(logging.FileHandler('logs/network_training.log'))
-logger.setLevel(logging.INFO)
+#logger.addHandler(logging.FileHandler('logs/network_training.log'))
+logger.setLevel(logging.DEBUG)
 logger.info('\nStarting run at ' + str(datetime.datetime.now()) + '.')
+
+training_directory = 'data/train'
+validation_directory='data/validation'
+test_directory='data/test_stg1'
+
+num_threads_for_preprocessing = 16
 
 # Set the preprocessing parameters.
 image_width = 512
@@ -117,18 +125,10 @@ train = theano.function(
 validate = theano.function(inputs=[inputs, labels],
                            outputs=[test_outputs, validation_loss])
 
-logger.info('Initializing data loader...')
+logger.info('Splitting training and validation images...')
 
-data_loader = loader.Loader(batch_size, image_width,
-                            'data/train',
-                            'data/test',
-                            0.1)
-
-logger.info('Pre-loading data...')
-
-data_loader.get_shuffled_train_input_iterator()
-data_loader.get_validation_input_iterator()
-data_loader.get_test_input_iterator()
+utilities.separate_validation_set(training_directory, validation_directory,
+                                  split=0.1)
 
 logger.info('Training model...')
 
@@ -147,22 +147,32 @@ logger.info(get_param_description_str(
 for i in range(0, num_epochs):
     epoch_start_time = time.time()
     
-    train_iterator = data_loader.get_shuffled_train_input_iterator()
+    train_iterator = preprocessing.get_threaded_generator(
+        training_directory, image_width, batch_size, type='training',
+        num_threads=num_threads_for_preprocessing)
     avg_batch_train_loss = 0
     num_iterations = 0
     for images_labels in train_iterator:
-        outputs, training_loss = train(images_labels[0], images_labels[1])
+        outputs, training_loss = train(numpy.moveaxis(images_labels[0],
+                                                      3, 1),
+                                       images_labels[1])
         avg_batch_train_loss += training_loss
         num_iterations += 1
+        logger.debug('num_iterations = ' + str(num_iterations))
     avg_batch_train_loss /= num_iterations
     
-    validation_iterator = data_loader.get_validation_input_iterator()
+    validation_iterator = preprocessing.get_threaded_generator(
+        validation_directory, image_width, batch_size, type='validation',
+        num_threads=num_threads_for_preprocessing)
     avg_validate_loss = 0
     num_examples = 0
     for images_labels in validation_iterator:
-        outputs, validation_loss = validate(images_labels[0], images_labels[1])
+        outputs, validation_loss = validate(numpy.moveaxis(images_labels[0],
+                                                           3, 1),
+                                            images_labels[1])
         avg_validate_loss += numpy.sum(validation_loss)
         num_examples += images_labels[0].shape[0]
+        logger.debug('num_examples = ' + str(num_examples))
     avg_validate_loss /= num_examples
     
     epoch_end_time = time.time()
@@ -182,11 +192,16 @@ for i in range(0, num_epochs):
                 + str(int(round(epoch_end_time - epoch_start_time)))
                 + ' seconds.')
     
-    if previous_learning_rate != learning_rate.get_value() :
+    if previous_learning_rate != learning_rate.get_value():
         logger.info('Changing learning rate from '
                     + str(previous_learning_rate) + ' to '
                     + str(learning_rate.get_value()) + '.')
         previous_learning_rates.append((i+1, learning_rate.get_value()))
+
+logger.info('Merging validation folder back into training folder...')
+
+utilities.recombine_validation_and_training(validation_directory,
+                                            training_directory)
 
 logger.info('Average batch training loss per epoch: '
             + str(previous_validate_losses))
