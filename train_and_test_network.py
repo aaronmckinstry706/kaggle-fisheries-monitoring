@@ -35,8 +35,8 @@ def get_learning_rate(
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.StreamHandler())
-#logger.addHandler(logging.FileHandler('logs/network_training.log'))
-logger.setLevel(logging.DEBUG)
+logger.addHandler(logging.FileHandler('logs/network_training.log'))
+logger.setLevel(logging.INFO)
 logger.info('\nStarting run at ' + str(datetime.datetime.now()) + '.')
 
 training_directory = 'data/train'
@@ -51,7 +51,7 @@ image_width = 512
 # Set the learning algorithm parameters.
 learning_rate = theano.shared(numpy.float32(0.001))
 momentum = 0.9
-batch_size = 64
+batch_size = 62
 weight_decay = 0.0001
 
 # Set architectural parameter invariants.
@@ -147,32 +147,34 @@ logger.info(get_param_description_str(
 for i in range(0, num_epochs):
     epoch_start_time = time.time()
     
-    train_iterator = preprocessing.get_threaded_generator(
-        training_directory, image_width, batch_size, type='training',
+    train_iterator = preprocessing.get_generator(
+        training_directory, image_width, batch_size, type='training')
+    threaded_train_iterator = preprocessing.get_threaded_generator(
+        train_iterator, len(train_iterator.filenames),
         num_threads=num_threads_for_preprocessing)
     avg_batch_train_loss = 0
     num_iterations = 0
-    for images_labels in train_iterator:
+    for images_labels in threaded_train_iterator:
         outputs, training_loss = train(numpy.moveaxis(images_labels[0],
                                                       3, 1),
                                        images_labels[1])
         avg_batch_train_loss += training_loss
         num_iterations += 1
-        logger.debug('num_iterations = ' + str(num_iterations))
     avg_batch_train_loss /= num_iterations
     
-    validation_iterator = preprocessing.get_threaded_generator(
-        validation_directory, image_width, batch_size, type='validation',
+    validation_iterator = preprocessing.get_generator(
+        validation_directory, image_width, batch_size, type='validation')
+    threaded_validation_iterator = preprocessing.get_threaded_generator(
+        validation_iterator, len(validation_iterator.filenames),
         num_threads=num_threads_for_preprocessing)
     avg_validate_loss = 0
     num_examples = 0
-    for images_labels in validation_iterator:
+    for images_labels in threaded_validation_iterator:
         outputs, validation_loss = validate(numpy.moveaxis(images_labels[0],
                                                            3, 1),
                                             images_labels[1])
         avg_validate_loss += numpy.sum(validation_loss)
         num_examples += images_labels[0].shape[0]
-        logger.debug('num_examples = ' + str(num_examples))
     avg_validate_loss /= num_examples
     
     epoch_end_time = time.time()
