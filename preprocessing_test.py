@@ -73,15 +73,11 @@ class PreprocessingTest(unittest.TestCase):
             self.batch_size,
             type='training',
             num_threads=1)
-        batches = 0
         for images, labels in training_generator:
             self.assertTupleEqual((self.batch_size, self.image_width,
                                    self.image_width, 3), images.shape)
             self.assertTupleEqual((self.batch_size, self.num_labels),
                                   labels.shape)
-            batches += 1
-            if batches == 30:
-                break
 
     def test_get_threaded_generator__eight_threads(self):
         training_generator = preprocessing.get_threaded_generator(
@@ -90,13 +86,9 @@ class PreprocessingTest(unittest.TestCase):
             self.batch_size,
             type='training',
             num_threads=8)
-        batches = 0
         for images, labels in training_generator:
             self.assertTupleEqual((self.batch_size, self.image_width,
                                    self.image_width, 3), images.shape)
             self.assertTupleEqual((self.batch_size, self.num_labels),
                                   labels.shape)
-            batches += 1
-            if batches == 30:
-                break
 

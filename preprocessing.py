@@ -3,6 +3,7 @@ import numpy
 import Queue
 import random
 import threading
+import time
 
 import keras.preprocessing.image as image
 import scipy.misc as misc
@@ -86,45 +87,46 @@ def get_test_generator(directory, desired_width, batch_size):
 
 def get_threaded_generator(directory, desired_width, batch_size, type,
                           num_threads=8):
-    iterator_getters = {'training': get_training_generator,
+    generator_getters = {'training': get_training_generator,
                         'validation': get_validation_generator,
                         'test': get_test_generator}
-    iterator_getter = iterator_getters[type]
+    generator_getter = generator_getters[type]
+    
+    data_generator = generator_getter(directory, desired_width,
+                                    batch_size)
+    num_data_points = len(data_generator.filenames)
     
     queue = Queue.Queue(maxsize=50)
-    sentinels = [object() for i in range(0,num_threads)]
+    sentinel = object()
+    stop_event = threading.Event()
     
     # define producer (putting items into queue)
-    def get_producer(i):
-        def producer():
-            data_generator = iterator_getter(directory, desired_width,
-                                            batch_size)
-            filenames = data_generator.filenames
-            count = 0
-            for item in data_generator:
-                count += item[0].shape[0]
-                queue.put(item)
-                if count >= len(filenames):
-                    break
-            queue.put(sentinels[i])
-        return producer
+    def producer():
+        while not stop_event.is_set():
+            item = next(data_generator)
+            success = False
+            while not success and not stop_event.is_set():
+                try:
+                    queue.put_nowait(item)
+                    success = True
+                except Queue.Full:
+                    time.sleep(0.05)
 
     # start producers (in background threads)
-    threads = [threading.Thread(target=get_producer(i))
+    threads = [threading.Thread(target=producer)
                for i in range(0, num_threads)]
     for thread in threads:
         thread.daemon = True
         thread.start()
     
     # run as consumer (read items from queue, in current thread)
-    sentinels_found = dict(
-        zip(sentinels, [False for i in range(0, num_threads)]))
-    
+    count = 0
     item = queue.get()
-    while not all(sentinels_found.values()):
-        if any([item == sentinel for sentinel in sentinels]):
-            sentinels_found[item] = True
-        else:
-            yield item
+    while item != sentinel:
+        yield item
+        count += item[0].shape[0]
+        if count >= num_data_points:
+            stop_event.set()
+            break
         queue.task_done()
         item = queue.get()

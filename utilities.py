@@ -47,7 +47,7 @@ def separate_validation_set(training_dir, validation_dir, split=0.1):
     labels = get_labels(training_dir)
     label_paths = [training_dir + '/' + label for label in labels]
     for label_path in label_paths:
-        image_paths = get_relative_paths(training_dir)
+        image_paths = get_relative_paths(label_path)
         validation_paths = random.sample(image_paths,
                                          int(split*len(image_paths)))
         for validation_path in validation_paths:

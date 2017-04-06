@@ -32,7 +32,7 @@ class UtilitiesTest_FileMovers(unittest.TestCase):
         self.training_directory = 'unit_test_resources/data/train'
         self.validation_directory = 'unit_test_resources/data/validation'
     
-    def test00_separate_validation_set(self):
+    def test00_separate_validation_set_splitOne(self):
         utilities.separate_validation_set(self.training_directory,
                                           self.validation_directory,
                                           1.0)
@@ -45,7 +45,33 @@ class UtilitiesTest_FileMovers(unittest.TestCase):
                 utilities.get_relative_paths(
                     self.validation_directory)))
     
-    def test01_recombine_validation_and_training(self):
+    def test01_recombine_validation_and_training_splitOne(self):
+        utilities.recombine_validation_and_training(
+            self.validation_directory,
+            self.training_directory)
+        self.assertEqual(
+            184,
+            len(utilities.get_relative_paths(self.training_directory)))
+        self.assertEqual(
+            0,
+            len(
+                utilities.get_relative_paths(
+                    self.validation_directory)))
+    
+    def test10_separate_validation_set_splitQuarter(self):
+        utilities.separate_validation_set(self.training_directory,
+                                          self.validation_directory,
+                                          split=0.25)
+        self.assertEqual(
+            139,
+            len(utilities.get_relative_paths(self.training_directory)))
+        self.assertEqual(
+            45,
+            len(
+                utilities.get_relative_paths(
+                    self.validation_directory)))
+    
+    def test11_recombine_validation_and_training_splitQuarter(self):
         utilities.recombine_validation_and_training(
             self.validation_directory,
             self.training_directory)
