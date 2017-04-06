@@ -85,16 +85,13 @@ def get_test_generator(directory, desired_width, batch_size):
         directory, batch_size=batch_size, class_mode=None,
         target_size=(desired_width, desired_width), shuffle=False)
 
-def get_threaded_generator(directory, desired_width, batch_size, type,
-                          num_threads=8):
+def get_generator(directory, desired_width, batch_size, type):
     generator_getters = {'training': get_training_generator,
                         'validation': get_validation_generator,
                         'test': get_test_generator}
-    generator_getter = generator_getters[type]
-    
-    data_generator = generator_getter(directory, desired_width,
-                                    batch_size)
-    num_data_points = len(data_generator.filenames)
+    return generator_getters[type](directory, desired_width, batch_size)
+
+def get_threaded_generator(data_generator, num_data_points, num_threads=1):
     
     queue = Queue.Queue(maxsize=50)
     sentinel = object()

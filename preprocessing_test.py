@@ -32,6 +32,9 @@ class PreprocessingTest(unittest.TestCase):
     def test_get_training_generator(self):
         training_generator = preprocessing.get_training_generator(
             self.training_directory, self.image_width, self.batch_size)
+        self.assertTrue(
+            any(['img_00165.jpg' in path
+                 for path in training_generator.filenames]))
         batches = 0
         for images, labels in training_generator:
             self.assertTupleEqual((self.batch_size, self.image_width,
@@ -45,6 +48,9 @@ class PreprocessingTest(unittest.TestCase):
     def test_get_validation_generator(self):
         validation_generator = preprocessing.get_validation_generator(
             self.training_directory, self.image_width, self.batch_size)
+        self.assertTrue(
+            any(['img_00165.jpg' in path
+                 for path in training_generator.filenames]))
         batches = 0
         for images, labels in validation_generator:
             self.assertTupleEqual((self.batch_size, self.image_width,
@@ -58,6 +64,9 @@ class PreprocessingTest(unittest.TestCase):
     def test_get_test_generator(self):
         test_generator = preprocessing.get_test_generator(
             self.test_directory, self.image_width, self.batch_size)
+        self.assertTrue(
+            any(['img_00165.jpg' in path
+                 for path in training_generator.filenames]))
         batches = 0
         for images in test_generator:
             self.assertTupleEqual((self.batch_size, self.image_width,
@@ -67,26 +76,30 @@ class PreprocessingTest(unittest.TestCase):
                 break
     
     def test_get_threaded_generator__one_thread(self):
-        training_generator = preprocessing.get_threaded_generator(
+        training_generator = preprocessing.get_generator(
             self.training_directory,
             self.image_width,
             self.batch_size,
-            type='training',
+            type='training')
+        threaded_generator = preprocessing.get_threaded_generator(
+            training_generator, len(training_generator.filenames),
             num_threads=1)
-        for images, labels in training_generator:
+        for images, labels in threaded_generator:
             self.assertTupleEqual((self.batch_size, self.image_width,
                                    self.image_width, 3), images.shape)
             self.assertTupleEqual((self.batch_size, self.num_labels),
                                   labels.shape)
 
     def test_get_threaded_generator__eight_threads(self):
-        training_generator = preprocessing.get_threaded_generator(
+        training_generator = preprocessing.get_generator(
             self.training_directory,
             self.image_width,
             self.batch_size,
-            type='training',
-            num_threads=8)
-        for images, labels in training_generator:
+            type='training')
+        threaded_generator = preprocessing.get_threaded_generator(
+            training_generator, len(training_generator.filenames),
+            num_threads=1)
+        for images, labels in threaded_generator:
             self.assertTupleEqual((self.batch_size, self.image_width,
                                    self.image_width, 3), images.shape)
             self.assertTupleEqual((self.batch_size, self.num_labels),
