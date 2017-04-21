@@ -1,12 +1,9 @@
-# All variables and functions are named according to machine learning
-# terminology: example, input, output, label, etc. For example, an input could be
-# a scalar, or a vector, or a matrix, or a tensor.
-
 import datetime
 import logging
 import os
 import sys
 import time
+import typing
 
 import keras.preprocessing.image
 import lasagne
@@ -18,83 +15,55 @@ import numpy
 import theano
 import theano.tensor as tensor
 
-import utilities
+import network_architectures as architectures
 import preprocessing
+import utilities
 
 def get_param_description_str(**kwargs):
     return str(kwargs)
 
-def get_learning_rate(
-        training_loss_history,
-        validation_loss_history,
-        learning_rate):
-    if len(training_loss_history) % 100 == 0:
+def get_learning_rate(training_loss_history,    # type: typing.List[float]
+                      validation_loss_history,  # type: typing.List[float]
+                      learning_rate             # type: float
+                      ):
+    # type: (...) -> numpy.float32
+    if len(training_loss_history) % 200 == 0 and len(training_loss_history) > 0:
         return numpy.float32(learning_rate/10.0)
     else:
         return numpy.float32(learning_rate)
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__) # type: logging.Logger
 logger.addHandler(logging.StreamHandler())
 logger.addHandler(logging.FileHandler('logs/network_training.log'))
 logger.setLevel(logging.INFO)
 logger.info('\nStarting run at ' + str(datetime.datetime.now()) + '.')
 
-training_directory = 'data/train'
-validation_directory='data/validation'
-test_directory='data/test_stg1'
+training_directory = 'data/train'   # type: str
+validation_directory='data/validation'  # type: str
+test_directory='data/test_stg1' # type: str
 
-num_threads_for_preprocessing = 16
+num_threads_for_preprocessing = 8
 
 # Set the preprocessing parameters.
 image_width = 512
 
 # Set the learning algorithm parameters.
-learning_rate = theano.shared(numpy.float32(0.001))
-momentum = 0.9
-batch_size = 62
-weight_decay = 0.0001
+learning_rate = theano.shared(numpy.float32(0.0001))
+momentum = 0.9  # type: float
+batch_size = 64 # type: int
+weight_decay = 0.0001   # type: float
 
 # Set architectural parameter invariants.
-num_classes = 8
+num_classes = 8 # type: int
 
 # Define the symbolic variables and expressions for network computations.
 inputs = tensor.tensor4(name='inputs')
 labels = tensor.matrix(name='labels')
 
-input_layer = layers.InputLayer(shape=(None, 3, image_width, image_width),
-                                input_var=inputs)
-
-hidden_layer_one = layers.Conv2DLayer(incoming=input_layer,
-                                      num_filters=16,
-                                      filter_size=(3,3),
-                                      stride=(2,2),
-                                      pad='same')
-hidden_layer_one = layers.batch_norm(hidden_layer_one)
-
-hidden_layer_two = layers.Conv2DLayer(incoming=hidden_layer_one,
-                                      num_filters=32,
-                                      filter_size=(3,3),
-                                      stride=(2,2),
-                                      pad='same')
-hidden_layer_two = layers.batch_norm(hidden_layer_two)
-
-hidden_layer_three = layers.Conv2DLayer(incoming=hidden_layer_two,
-                                        num_filters=64,
-                                        filter_size=(3,3),
-                                        pad='same')
-hidden_layer_three = layers.batch_norm(hidden_layer_three)
-
-hidden_layer_three = layers.Conv2DLayer(incoming=hidden_layer_two,
-                                        num_filters=8,
-                                        filter_size=(3,3),
-                                        pad='same')
-hidden_layer_three = layers.batch_norm(hidden_layer_three)
-
-output_map_pooling_layer = layers.GlobalPoolLayer(incoming=hidden_layer_three,
-                                                  pool_function=tensor.max)
-
-output_layer = layers.NonlinearityLayer(incoming=output_map_pooling_layer,
-                                        nonlinearity=nonlinearities.softmax)
+output_layer = architectures.fully_convolutional_network(
+    inputs=inputs,
+    image_shape=(3, image_width, image_width),
+    num_outputs=num_classes)
 
 train_outputs = layers.get_output(output_layer, deterministic=False)
 test_outputs = layers.get_output(output_layer, deterministic=True)
@@ -103,11 +72,8 @@ network_parameters = layers.get_all_params(output_layer, trainable=True)
 
 train_loss_without_regularization = tensor.sum(
     objectives.categorical_crossentropy(train_outputs, labels)) / batch_size
-train_loss = train_loss_without_regularization
-for trainable_layer_parameters in network_parameters:
-    current_decay_term = tensor.sum(
-        trainable_layer_parameters*trainable_layer_parameters)
-    train_loss = train_loss + weight_decay*current_decay_term
+train_loss = train_loss_without_regularization + lasagne.regularization.l2(
+    train_outputs)
 validation_loss = objectives.categorical_crossentropy(test_outputs, labels)
 
 network_updates = updates.nesterov_momentum(
@@ -117,25 +83,28 @@ network_updates = updates.nesterov_momentum(
     momentum=momentum)
 
 logger.info('Compiling the train and validation functions...')
-
 train = theano.function(
     inputs=[inputs, labels],
-    outputs=[train_outputs, train_loss],
+    outputs=[train_outputs, train_loss_without_regularization],
     updates=network_updates)
 validate = theano.function(inputs=[inputs, labels],
                            outputs=[test_outputs, validation_loss])
 
-logger.info('Splitting training and validation images...')
+logger.info('Cleaning up training/validation split from previous runs...')
+utilities.recombine_validation_and_training(validation_directory,
+                                            training_directory)
 
+logger.info('Splitting training and validation images...')
 utilities.separate_validation_set(training_directory, validation_directory,
                                   split=0.1)
 
 logger.info('Training model...')
 
-num_epochs = 300
-previous_validate_losses = []
-previous_train_losses = []
-previous_learning_rates = [(0,learning_rate.get_value())]
+num_epochs = 600
+previous_validate_losses = []   # type: typing.List[float]
+previous_train_losses = []      # type: typing.List[float]
+previous_learning_rates = [] # type: typing.List[typing.Tuple[int, float]]
+previous_learning_rates.append((0,learning_rate.get_value()))
 previous_learning_rate = None
 
 logger.info(get_param_description_str(
@@ -160,7 +129,7 @@ for i in range(0, num_epochs):
                                        images_labels[1])
         avg_batch_train_loss += training_loss
         num_iterations += 1
-    avg_batch_train_loss /= num_iterations
+    avg_batch_train_loss = avg_batch_train_loss / num_iterations
     
     validation_iterator = preprocessing.get_generator(
         validation_directory, image_width, batch_size, type='validation')
@@ -175,7 +144,7 @@ for i in range(0, num_epochs):
                                             images_labels[1])
         avg_validate_loss += numpy.sum(validation_loss)
         num_examples += images_labels[0].shape[0]
-    avg_validate_loss /= num_examples
+    avg_validate_loss = avg_validate_loss / num_examples
     
     epoch_end_time = time.time()
     
@@ -201,7 +170,6 @@ for i in range(0, num_epochs):
         previous_learning_rates.append((i+1, learning_rate.get_value()))
 
 logger.info('Merging validation folder back into training folder...')
-
 utilities.recombine_validation_and_training(validation_directory,
                                             training_directory)
 
@@ -210,4 +178,5 @@ logger.info('Average batch training loss per epoch: '
 logger.info('Validation loss per epoch: '
             + str(previous_train_losses))
 logger.info('Learning rate schedule: ' + str(previous_learning_rates))
+
 logger.info('Finishing run at ' + str(datetime.datetime.now()) + '.')
