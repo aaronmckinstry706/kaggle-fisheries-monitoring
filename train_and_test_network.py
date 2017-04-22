@@ -15,22 +15,20 @@ import numpy
 import theano
 import theano.tensor as tensor
 
+import config
 import network_architectures as architectures
 import preprocessing
 import utilities
-
-def get_param_description_str(**kwargs):
-    return str(kwargs)
 
 def get_learning_rate(training_loss_history,    # type: typing.List[float]
                       validation_loss_history,  # type: typing.List[float]
                       learning_rate             # type: float
                       ):
-    # type: (...) -> numpy.float32
+    # type: (...) -> float
     if len(training_loss_history) % 200 == 0 and len(training_loss_history) > 0:
-        return numpy.float32(learning_rate/10.0)
+        return learning_rate/10.0
     else:
-        return numpy.float32(learning_rate)
+        return learning_rate
 
 logger = logging.getLogger(__name__) # type: logging.Logger
 logger.addHandler(logging.StreamHandler())
@@ -38,32 +36,17 @@ logger.addHandler(logging.FileHandler('logs/network_training.log'))
 logger.setLevel(logging.INFO)
 logger.info('\nStarting run at ' + str(datetime.datetime.now()) + '.')
 
-training_directory = 'data/train'   # type: str
-validation_directory='data/validation'  # type: str
-test_directory='data/test_stg1' # type: str
-
-num_threads_for_preprocessing = 8
-
-# Set the preprocessing parameters.
-image_width = 512
-
-# Set the learning algorithm parameters.
-learning_rate = theano.shared(numpy.float32(0.0001))
-momentum = 0.9  # type: float
-batch_size = 64 # type: int
-weight_decay = 0.0001   # type: float
-
-# Set architectural parameter invariants.
-num_classes = 8 # type: int
+params = config.read_config_file('config.txt')
 
 # Define the symbolic variables and expressions for network computations.
+learning_rate = theano.shared(numpy.float32(params['initial_learning_rate']))
 inputs = tensor.tensor4(name='inputs')
 labels = tensor.matrix(name='labels')
 
 output_layer = architectures.fully_convolutional_network(
     inputs=inputs,
-    image_shape=(3, image_width, image_width),
-    num_outputs=num_classes)
+    image_shape=(3, params['image_width'], params['image_width']),
+    num_outputs=params['num_classes'])
 
 train_outputs = layers.get_output(output_layer, deterministic=False)
 test_outputs = layers.get_output(output_layer, deterministic=True)
@@ -71,7 +54,7 @@ test_outputs = layers.get_output(output_layer, deterministic=True)
 network_parameters = layers.get_all_params(output_layer, trainable=True)
 
 train_loss_without_regularization = tensor.sum(
-    objectives.categorical_crossentropy(train_outputs, labels)) / batch_size
+    objectives.categorical_crossentropy(train_outputs, labels)) / params['batch_size']
 train_loss = train_loss_without_regularization + lasagne.regularization.l2(
     train_outputs)
 validation_loss = objectives.categorical_crossentropy(test_outputs, labels)
@@ -80,47 +63,42 @@ network_updates = updates.nesterov_momentum(
     loss_or_grads=train_loss,
     params=network_parameters,
     learning_rate=learning_rate,
-    momentum=momentum)
+    momentum=params['momentum'])
 
-logger.info('Compiling the train and validation functions...')
+logger.info('Compiling the train and validation functions.')
 train = theano.function(
     inputs=[inputs, labels],
-    outputs=[train_outputs, train_loss_without_regularization],
+    outputs=[train_outputs, train_loss],
     updates=network_updates)
 validate = theano.function(inputs=[inputs, labels],
                            outputs=[test_outputs, validation_loss])
 
-logger.info('Cleaning up training/validation split from previous runs...')
-utilities.recombine_validation_and_training(validation_directory,
-                                            training_directory)
+logger.info('Cleaning up training/validation split from previous runs.')
+utilities.recombine_validation_and_training(params['validation_directory'],
+                                            params['training_directory'])
 
-logger.info('Splitting training and validation images...')
-utilities.separate_validation_set(training_directory, validation_directory,
+logger.info('Splitting training and validation images.')
+utilities.separate_validation_set(params['training_directory'], params['validation_directory'],
                                   split=0.1)
 
-logger.info('Training model...')
+logger.info('Training model.')
 
-num_epochs = 600
 previous_validate_losses = []   # type: typing.List[float]
 previous_train_losses = []      # type: typing.List[float]
-previous_learning_rates = [] # type: typing.List[typing.Tuple[int, float]]
+previous_learning_rates = []    # type: typing.List[typing.Tuple[int, float]]
 previous_learning_rates.append((0,learning_rate.get_value()))
-previous_learning_rate = None
+previous_learning_rate = None   # type: typing.Union[float, None]
 
-logger.info(get_param_description_str(
-    image_width=image_width,
-    learning_rate=learning_rate.get_value(),
-    batch_size=batch_size,
-    weight_decay=weight_decay))
+logger.info(params)
 
-for i in range(0, num_epochs):
+for i in range(0, params['num_epochs']):
     epoch_start_time = time.time()
     
     train_iterator = preprocessing.get_generator(
-        training_directory, image_width, batch_size, type='training')
+        params['training_directory'], params['image_width'], params['batch_size'], type='training')
     threaded_train_iterator = preprocessing.get_threaded_generator(
         train_iterator, len(train_iterator.filenames),
-        num_threads=num_threads_for_preprocessing)
+        num_threads=params['num_threads_for_preprocessing'])
     avg_batch_train_loss = 0
     num_iterations = 0
     for images_labels in threaded_train_iterator:
@@ -132,10 +110,10 @@ for i in range(0, num_epochs):
     avg_batch_train_loss = avg_batch_train_loss / num_iterations
     
     validation_iterator = preprocessing.get_generator(
-        validation_directory, image_width, batch_size, type='validation')
+        params['validation_directory'], params['image_width'], params['batch_size'], type='validation')
     threaded_validation_iterator = preprocessing.get_threaded_generator(
         validation_iterator, len(validation_iterator.filenames),
-        num_threads=num_threads_for_preprocessing)
+        num_threads=params['num_threads_for_preprocessing'])
     avg_validate_loss = 0
     num_examples = 0
     for images_labels in threaded_validation_iterator:
@@ -151,9 +129,13 @@ for i in range(0, num_epochs):
     previous_validate_losses.append(avg_validate_loss)
     previous_train_losses.append(avg_batch_train_loss)
     previous_learning_rate = learning_rate.get_value()
-    learning_rate.set_value(get_learning_rate(previous_train_losses,
-                                              previous_validate_losses,
-                                              learning_rate.get_value()))
+    learning_rate.set_value(
+        numpy.float32(
+            get_learning_rate(
+                previous_train_losses,
+                previous_validate_losses,
+                learning_rate.get_value())))
+    
     logger.info('Epoch ' + str(i) + ':\n'
                 + '    Crossentropy loss over validation set: '
                 + str(avg_validate_loss) + '.\n'
@@ -170,8 +152,8 @@ for i in range(0, num_epochs):
         previous_learning_rates.append((i+1, learning_rate.get_value()))
 
 logger.info('Merging validation folder back into training folder...')
-utilities.recombine_validation_and_training(validation_directory,
-                                            training_directory)
+utilities.recombine_validation_and_training(params['validation_directory'],
+                                            params['training_directory'])
 
 logger.info('Average batch training loss per epoch: '
             + str(previous_validate_losses))
