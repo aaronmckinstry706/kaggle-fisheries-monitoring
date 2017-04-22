@@ -18,6 +18,8 @@ def read_config_file(filename):
         'num_classes' : int,
         'num_epochs' : int} # type: typing.Dict[str, typing.Callable]
     for line in open(filename, 'r'):
+        if '#' in line:
+            line = line.split('#')[0]
         if '=' in line:
             [name, value] = line.split('=')
             name = name.strip()
