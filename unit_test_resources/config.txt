@@ -1,0 +1,9 @@
+training_directory		=	unit_test_resources/data/train
+validation_directory		=	unit_test_resources/data/validation
+test_directory			=	unit_test_resources/data/test
+num_threads_for_preprocessing	=	8
+image_width			=	512
+initial_learning_rate		=	0.0001
+momentum			=	0.9
+batch_size			=	64
+weight_decay			=	0.0001
