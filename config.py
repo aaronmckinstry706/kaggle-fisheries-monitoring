@@ -16,7 +16,8 @@ def read_config_file(filename):
         'batch_size': int,
         'weight_decay': float,
         'num_classes' : int,
-        'num_epochs' : int} # type: typing.Dict[str, typing.Callable]
+        'num_epochs' : int,
+        'patience' : int} # type: typing.Dict[str, typing.Callable]
     for line in open(filename, 'r'):
         if '#' in line:
             line = line.split('#')[0]

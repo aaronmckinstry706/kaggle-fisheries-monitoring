@@ -10,6 +10,7 @@ import lasagne
 import lasagne.layers as layers
 import lasagne.nonlinearities as nonlinearities
 import lasagne.objectives as objectives
+import lasagne.regularization as regularization
 import lasagne.updates as updates
 import numpy
 import theano
@@ -43,20 +44,21 @@ learning_rate = theano.shared(numpy.float32(params['initial_learning_rate']))
 inputs = tensor.tensor4(name='inputs')
 labels = tensor.matrix(name='labels')
 
-output_layer = architectures.fully_convolutional_network(
+network = architectures.fully_convolutional_network(
     inputs=inputs,
     image_shape=(3, params['image_width'], params['image_width']),
     num_outputs=params['num_classes'])
 
-train_outputs = layers.get_output(output_layer, deterministic=False)
-test_outputs = layers.get_output(output_layer, deterministic=True)
+train_outputs = layers.get_output(network, deterministic=False)
+test_outputs = layers.get_output(network, deterministic=True)
 
-network_parameters = layers.get_all_params(output_layer, trainable=True)
+network_parameters = layers.get_all_params(network, trainable=True)
 
 train_loss_without_regularization = tensor.sum(
     objectives.categorical_crossentropy(train_outputs, labels)) / params['batch_size']
-train_loss = train_loss_without_regularization + lasagne.regularization.l2(
-    train_outputs)
+train_loss = train_loss_without_regularization \
+    + lasagne.regularization.regularize_network_params(
+        layer=network, penalty=regularization.l2)
 validation_loss = objectives.categorical_crossentropy(test_outputs, labels)
 
 network_updates = updates.nesterov_momentum(
@@ -64,6 +66,13 @@ network_updates = updates.nesterov_momentum(
     params=network_parameters,
     learning_rate=learning_rate,
     momentum=params['momentum'])
+
+# These are used in early stopping. The parameters that achieve the lowest
+# error on the validation set are stored in this network.
+best_network = architectures.fully_convolutional_network(
+    inputs=inputs,
+    image_shape=(3, params['image_width'], params['image_width']),
+    num_outputs=params['num_classes'])
 
 logger.info('Compiling the train and validation functions.')
 train = theano.function(
@@ -88,8 +97,10 @@ previous_train_losses = []      # type: typing.List[float]
 previous_learning_rates = []    # type: typing.List[typing.Tuple[int, float]]
 previous_learning_rates.append((0,learning_rate.get_value()))
 previous_learning_rate = None   # type: typing.Union[float, None]
+best_validation_loss = float("inf") # type: float
+remaining_patience = params['patience']
 
-logger.info(params)
+logger.info(str(params))
 
 for i in range(0, params['num_epochs']):
     epoch_start_time = time.time()
@@ -126,6 +137,18 @@ for i in range(0, params['num_epochs']):
     
     epoch_end_time = time.time()
     
+    if avg_validate_loss < best_validation_loss:
+        best_validation_loss = avg_validate_loss
+        current_network_params = layers.get_all_params(network)
+        best_network_params = layers.get_all_params(best_network)
+        # Set best_network to current network parameters
+        for i in range(len(best_network_params)):
+            best_network_params[i].set_value(
+                current_network_params[i].get_value())
+        remaining_patience = params['patience']
+    else:
+        remaining_patience = remaining_patience - 1
+    
     previous_validate_losses.append(avg_validate_loss)
     previous_train_losses.append(avg_batch_train_loss)
     previous_learning_rate = learning_rate.get_value()
@@ -144,6 +167,10 @@ for i in range(0, params['num_epochs']):
                 + '    Time: '
                 + str(int(round(epoch_end_time - epoch_start_time)))
                 + ' seconds.')
+    
+    if remaining_patience == 0:
+        logger.info('Best validation loss: ' + str(best_validation_loss) + '.')
+        break
     
     if previous_learning_rate != learning_rate.get_value():
         logger.info('Changing learning rate from '
