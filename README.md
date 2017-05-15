@@ -52,8 +52,7 @@ This script was run with the dependencies listed below. I attempted to follow go
         +-- OTHER
         |
         +-- YFT
-```
-All of the training data downloaded should be in the training directory "data/train" and its subdirectories. The script automatically performs a random (stratified) sampling of the training set and puts those images into the validation directory (do not worry about this being problematic during multiple runs; the script re-combines all images into the train directory during every run before doing a train/validation split). 
+``` All of the training data downloaded should be in the training directory "data/train" and its subdirectories. The script automatically performs a random (stratified) sampling of the training set and puts those images into the validation directory (do not worry about this being problematic during multiple runs; the script re-combines all images into the train directory during every run before doing a train/validation split). 
 3. Create a config file by copying the config_template.txt file into the a new file "config.txt". Then, modify the values in the config file as desired. (They are hyperparameters: initial learning rate, etc.; this is also where the train and validation directories are defined, so if you prefer different names or locations for those directories, you may change them here--but make sure that both the validation and train directories contain one subdirectory for each of the 8 classes). 
 4. Run unit tests to make sure all the code is working properly on your system: `python utilities_test`. 
 5. Run the script: `python train_and_test_network.py`. 
