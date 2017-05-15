@@ -59,9 +59,9 @@ All of the training data downloaded should be in the training directory "data/tr
 ## Output
 
 The output will be written to the log file "script_log.txt", and to standard output. The output includes the following:
-- for each epoch:
-- - the number of seconds the epoch took,
-- - the average training loss over all batches in the epoch,
-- - and the network's validation loss after the epoch is finished;
-- and the gradient with respect to each batch during training.
+* for each epoch:
+    * the number of seconds the epoch took,
+    * the average training loss over all batches in the epoch,
+    * and the network's validation loss after the epoch is finished;
+* and the gradient with respect to each batch during training.
 
