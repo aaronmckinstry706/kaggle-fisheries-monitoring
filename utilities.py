@@ -1,7 +1,10 @@
 import os
+import operator
 import random
 
 import keras.preprocessing.image as image
+import lasagne.layers as layers
+import theano.gradient as gradient
 
 def get_labels(train_directory):
     """Gets a list of all directory names in the training directory. Each

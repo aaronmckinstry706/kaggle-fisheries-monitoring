@@ -19,5 +19,9 @@ class ConfigTest(unittest.TestCase):
                  ('initial_learning_rate', 0.0001),
                  ('momentum', 0.9), 
                  ('batch_size', 64),
-                 ('weight_decay', 0.0001)]),
+                 ('weight_decay', 0.0001),
+                 ('patience', 40),
+                 ('num_epochs', 40),
+                 ('num_classes', 8)]),
             set(params.items()))
+

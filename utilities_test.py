@@ -1,7 +1,11 @@
-import unittest
-import utilities
-
+import operator
 import os
+import unittest
+
+import lasagne.layers as layers
+import theano.tensor as tensor
+
+import utilities
 
 class UtilitiesTest_PathReaders(unittest.TestCase):
     

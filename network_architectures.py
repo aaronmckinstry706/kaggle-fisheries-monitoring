@@ -14,7 +14,7 @@ def fully_convolutional_network(inputs, image_shape, num_outputs):
                        512-channel image of size 512x3. 
         inputs -- A theano symbolic tensor with one more dimension than
                   image_shape. For example, if image_shape == (224, 224), then
-                  'inputs' should be of type "
+                  'inputs' should be of type theano.tensor.Tensor3. 
     
     Returns:
         network -- An object of a class descended from lasagne.layers.Layer.
@@ -27,7 +27,7 @@ def fully_convolutional_network(inputs, image_shape, num_outputs):
     hidden_layer_one = layers.Conv2DLayer(incoming=input_layer,
                                           num_filters=48,
                                           filter_size=(3,3),
-                                          stride=(2,2),
+                                          stride=(3,3),
                                           pad='same')
     hidden_layer_one = layers.batch_norm(hidden_layer_one)
     
@@ -44,13 +44,13 @@ def fully_convolutional_network(inputs, image_shape, num_outputs):
                                             pad='same')
     hidden_layer_three = layers.batch_norm(hidden_layer_three)
     
-    hidden_layer_three = layers.Conv2DLayer(incoming=hidden_layer_two,
+    hidden_layer_four = layers.Conv2DLayer(incoming=hidden_layer_three,
                                             num_filters=num_outputs,
                                             filter_size=(3,3),
                                             pad='same')
-    hidden_layer_three = layers.batch_norm(hidden_layer_three)
+    hidden_layer_four = layers.batch_norm(hidden_layer_four)
     
-    output_map_pooling_layer = layers.GlobalPoolLayer(incoming=hidden_layer_three,
+    output_map_pooling_layer = layers.GlobalPoolLayer(incoming=hidden_layer_four,
                                                       pool_function=tensor.max)
     
     output_layer = layers.NonlinearityLayer(incoming=output_map_pooling_layer,
