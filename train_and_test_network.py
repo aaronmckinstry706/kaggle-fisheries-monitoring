@@ -26,7 +26,7 @@ def get_learning_rate(training_loss_history,    # type: typing.List[float]
                       learning_rate             # type: float
                       ):
     # type: (...) -> float
-    if len(training_loss_history) == 200:
+    if len(training_loss_history) == 10:
         return learning_rate/10.0
     else:
         return learning_rate
@@ -44,10 +44,32 @@ learning_rate = theano.shared(numpy.float32(config_params['initial_learning_rate
 inputs = tensor.tensor4(name='inputs')
 labels = tensor.matrix(name='labels')
 
-network = architectures.fully_convolutional_network(
-    inputs=inputs,
-    image_shape=(3, config_params['image_width'], config_params['image_width']),
-    num_outputs=config_params['num_classes'])
+if (config_params['architecture'] == 'big'):
+    network = architectures.fully_convolutional_big(
+        inputs=inputs,
+        image_shape=(3, config_params['image_width'],
+                     config_params['image_width']),
+        num_outputs=config_params['num_classes'])
+
+    # This is used in early stopping. The parameters that achieve the lowest
+    # error on the validation set are stored in this network.
+    best_network = architectures.fully_convolutional_big(
+        inputs=inputs,
+        image_shape=(3, config_params['image_width'], config_params['image_width']),
+        num_outputs=config_params['num_classes'])
+elif (config_params['architecture'] == 'small'):
+    network = architectures.fully_convolutional_small(
+        inputs=inputs,
+        image_shape=(3, config_params['image_width'],
+                     config_params['image_width']),
+        num_outputs=config_params['num_classes'])
+    
+    # This is used in early stopping. The parameters that achieve the lowest
+    # error on the validation set are stored in this network.
+    best_network = architectures.fully_convolutional_small(
+        inputs=inputs,
+        image_shape=(3, config_params['image_width'], config_params['image_width']),
+        num_outputs=config_params['num_classes'])
 
 train_outputs = layers.get_output(network, deterministic=False)
 test_outputs = layers.get_output(network, deterministic=True)
@@ -74,13 +96,6 @@ network_updates = updates.nesterov_momentum(
     params=network_parameters,
     learning_rate=learning_rate,
     momentum=config_params['momentum'])
-
-# This is used in early stopping. The parameters that achieve the lowest
-# error on the validation set are stored in this network.
-best_network = architectures.fully_convolutional_network(
-    inputs=inputs,
-    image_shape=(3, config_params['image_width'], config_params['image_width']),
-    num_outputs=config_params['num_classes'])
 
 logger.info('Compiling the train and validation functions.')
 train = theano.function(
@@ -132,7 +147,7 @@ for i in range(0, config_params['num_epochs']):
         num_iterations += 1
         gradient_norms.append(get_gradient_norm(numpy.moveaxis(images_labels[0],
                                                                3, 1),
-                                                images_labels[1]))
+                                                images_labels[1])[0])
     avg_batch_train_loss = avg_batch_train_loss / num_iterations
     
     validation_iterator = preprocessing.get_generator(
@@ -157,9 +172,9 @@ for i in range(0, config_params['num_epochs']):
         current_network_params = layers.get_all_params(network)
         best_network_params = layers.get_all_params(best_network)
         # Set best_network to current network parameters
-        for i in range(len(best_network_params)):
-            best_network_params[i].set_value(
-                current_network_params[i].get_value())
+        for j in range(len(best_network_params)):
+            best_network_params[j].set_value(
+                current_network_params[j].get_value())
         remaining_patience = config_params['patience']
     else:
         remaining_patience = remaining_patience - 1

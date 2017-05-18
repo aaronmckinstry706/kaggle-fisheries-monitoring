@@ -4,11 +4,10 @@ def read_config_file(filename):
     # type: (str) -> typing.Dict[str, typing.Any]
     config_params = {} # type: typing.Dict[str, typing.Any]
     
-    identity_function = lambda x: x
     processing_functions = {
-        'training_directory': identity_function,
-        'validation_directory': identity_function,
-        'test_directory': identity_function,
+        'training_directory': str,
+        'validation_directory': str,
+        'test_directory': str,
         'num_threads_for_preprocessing': int,
         'image_width': int,
         'initial_learning_rate': float,
@@ -17,7 +16,8 @@ def read_config_file(filename):
         'weight_decay': float,
         'num_classes' : int,
         'num_epochs' : int,
-        'patience' : int} # type: typing.Dict[str, typing.Callable]
+        'patience' : int,
+        'architecture': str} # type: typing.Dict[str, typing.Callable]
     for line in open(filename, 'r'):
         if '#' in line:
             line = line.split('#')[0]
