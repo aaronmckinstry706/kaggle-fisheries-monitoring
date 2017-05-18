@@ -4,7 +4,50 @@ import random
 
 import keras.preprocessing.image as image
 import lasagne.layers as layers
+import matplotlib.pyplot as pyplot
+import numpy
 import theano.gradient as gradient
+
+def display_history(training_loss_history, validation_loss_history,
+                    gradient_history, variance_window=20):
+    pyplot.clf()
+    pyplot.subplot(3, 1, 1)
+    pyplot.plot(training_loss_history)
+    pyplot.title('Training Loss')
+    pyplot.xlabel('Iteration')
+    pyplot.ylabel('Batch training loss at iteration')
+    
+    validation_loss_x = [validation_loss_history[i][0]
+                         for i in range(len(validation_loss_history))]
+    validation_loss_y = [validation_loss_history[i][1]
+                         for i in range(len(validation_loss_history))]
+    pyplot.plot(validation_loss_x, validation_loss_y)
+    pyplot.title('Validation Loss')
+    pyplot.xlabel('Iteration')
+    pyplot.ylabel('Validation loss after iteration')
+    
+    pyplot.subplot(3, 1, 2)
+    pyplot.plot(gradient_history)
+    pyplot.title('Gradient L2 Norm')
+    pyplot.xlabel('Iteration')
+    pyplot.ylabel('Gradient L2 norm at iteration')
+    
+    if len(gradient_history) > variance_window:
+        pyplot.subplot(3, 1, 3)
+        variances = []
+        for i in range(len(gradient_history) - variance_window):
+            variances.append(
+                numpy.var(gradient_history[i : i + variance_window]))
+        x_values = [i + variance_window - 1
+                    for i in range(len(gradient_history) - variance_window)]
+        pyplot.plot(x_values, variances)
+        pyplot.title('Gradient Variance')
+        pyplot.xlabel('Iteration')
+        pyplot.ylabel('Gradient variance of ' + str(variance_window) + ' previous iterations')
+    
+    pyplot.gcf().subplots_adjust(hspace=0.5)
+    
+    pyplot.pause(0.0001)
 
 def get_labels(train_directory):
     """Gets a list of all directory names in the training directory. Each

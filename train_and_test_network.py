@@ -13,6 +13,7 @@ import lasagne.nonlinearities as nonlinearities
 import lasagne.objectives as objectives
 import lasagne.regularization as regularization
 import lasagne.updates as updates
+import matplotlib.pyplot as pyplot
 import numpy
 import theano
 import theano.tensor as tensor
@@ -27,10 +28,12 @@ def get_learning_rate(training_loss_history,    # type: typing.List[float]
                       learning_rate             # type: float
                       ):
     # type: (...) -> float
-    if len(training_loss_history) == 1:
+    if len(training_loss_history) == 50:
         return learning_rate/10.0
     else:
         return learning_rate
+
+pyplot.ion()
 
 now_str = re.sub(" ", "-", str(datetime.datetime.now()))
 logger = logging.getLogger(__name__) # type: logging.Logger
@@ -120,7 +123,7 @@ utilities.separate_validation_set(config_params['training_directory'], config_pa
 
 logger.info('Training model.')
 
-previous_validate_losses = []   # type: typing.List[float]
+previous_validation_losses = []   # type: typing.List[float]
 previous_training_losses = []      # type: typing.List[float]
 previous_learning_rates = []    # type: typing.List[typing.Tuple[int, float]]
 previous_learning_rates.append(
@@ -131,6 +134,8 @@ best_validation_loss = float("inf") # type: float
 remaining_patience = config_params['patience']
 iteration_num = 0
 epoch_num = 0
+
+pyplot.figure(figsize=(6, 8))
 
 logger.info(str(config_params))
 
@@ -159,7 +164,7 @@ while iteration_num < config_params['num_iterations']:
             numpy.float32(
                 get_learning_rate(
                     previous_training_losses,
-                    previous_validate_losses,
+                    previous_validation_losses,
                     learning_rate.get_value())))
         
         if previous_learning_rate != learning_rate.get_value():
@@ -169,26 +174,28 @@ while iteration_num < config_params['num_iterations']:
                         + '.')
             previous_learning_rates.append(
                 (iteration_num + 1, numpy.asscalar(learning_rate.get_value())))
+        
+        pyplot.pause(0.0001)
     
     validation_iterator = preprocessing.get_generator(
         config_params['validation_directory'], config_params['image_width'], config_params['batch_size'], type='validation')
     threaded_validation_iterator = preprocessing.get_threaded_generator(
         validation_iterator, len(validation_iterator.filenames),
         num_threads=config_params['num_threads_for_preprocessing'])
-    avg_validate_loss = 0
+    avg_validation_loss = 0
     num_examples = 0
     for images_labels in threaded_validation_iterator:
         outputs, validation_loss = validate(numpy.moveaxis(images_labels[0],
                                                            3, 1),
                                             images_labels[1])
-        avg_validate_loss += numpy.sum(validation_loss)
+        avg_validation_loss += numpy.sum(validation_loss)
         num_examples += images_labels[0].shape[0]
-    avg_validate_loss = avg_validate_loss / num_examples
+    avg_validation_loss = avg_validation_loss / num_examples
     
     epoch_end_time = time.time()
     
-    if avg_validate_loss < best_validation_loss:
-        best_validation_loss = avg_validate_loss
+    if avg_validation_loss < best_validation_loss:
+        best_validation_loss = avg_validation_loss
         current_network_params = layers.get_all_params(network)
         best_network_params = layers.get_all_params(best_network)
         # Set best_network to current network parameters
@@ -199,11 +206,16 @@ while iteration_num < config_params['num_iterations']:
     else:
         remaining_patience = remaining_patience - 1
     
-    previous_validate_losses.append((iteration_num, avg_validate_loss))
+    previous_validation_losses.append((iteration_num, avg_validation_loss))
+    
+    utilities.display_history(
+        previous_training_losses,
+        previous_validation_losses, 
+        gradient_norms)
     
     logger.info('Epoch ' + str(epoch_num) + ':\n'
                 + '    Crossentropy loss over validation set: '
-                + str(avg_validate_loss) + '.\n'
+                + str(avg_validation_loss) + '.\n'
                 + '    Most recent batch loss over training set:'
                 + ' ' + str(current_training_loss) + '.\n'
                 + '    Time: '
@@ -219,7 +231,10 @@ while iteration_num < config_params['num_iterations']:
 logger.info('Batch training loss per iteration: '
             + str(previous_training_losses))
 logger.info('Validation loss after each epoch, indexed by iteration: '
-            + str(previous_validate_losses))
+            + str(previous_validation_losses))
 logger.info('Gradient norms per iteration: ' + str(gradient_norms))
 logger.info('Learning rate schedule: ' + str(previous_learning_rates))
 logger.info('Finishing run at ' + str(datetime.datetime.now()) + '.')
+
+pyplot.ioff()
+pyplot.close('all')
