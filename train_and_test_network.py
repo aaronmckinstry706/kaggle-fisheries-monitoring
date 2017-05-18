@@ -1,6 +1,7 @@
 import datetime
 import logging
 import os
+import re
 import sys
 import time
 import typing
@@ -26,16 +27,17 @@ def get_learning_rate(training_loss_history,    # type: typing.List[float]
                       learning_rate             # type: float
                       ):
     # type: (...) -> float
-    if len(training_loss_history) == 10:
+    if len(training_loss_history) == 1:
         return learning_rate/10.0
     else:
         return learning_rate
 
+now_str = re.sub(" ", "-", str(datetime.datetime.now()))
 logger = logging.getLogger(__name__) # type: logging.Logger
 logger.addHandler(logging.StreamHandler())
-logger.addHandler(logging.FileHandler('logs/network_training.log'))
+logger.addHandler(logging.FileHandler('logs/network_training_' + now_str + '.log'))
 logger.setLevel(logging.INFO)
-logger.info('\nStarting run at ' + str(datetime.datetime.now()) + '.')
+logger.info('\nStarting run at ' + now_str + '.')
 
 config_params = config.read_config_file('config.txt')
 
@@ -106,7 +108,7 @@ validate = theano.function(inputs=[inputs, labels],
                            outputs=[test_outputs, validation_loss])
 get_gradient_norm = theano.function(
     inputs=[inputs, labels],
-    outputs=[gradient_norm])
+    outputs=gradient_norm)
 
 logger.info('Cleaning up training/validation split from previous runs.')
 utilities.recombine_validation_and_training(config_params['validation_directory'],
@@ -121,15 +123,18 @@ logger.info('Training model.')
 previous_validate_losses = []   # type: typing.List[float]
 previous_train_losses = []      # type: typing.List[float]
 previous_learning_rates = []    # type: typing.List[typing.Tuple[int, float]]
-previous_learning_rates.append((0,learning_rate.get_value()))
+previous_learning_rates.append(
+    (0, numpy.asscalar(learning_rate.get_value())))
 previous_learning_rate = None   # type: typing.Union[float, None]
 gradient_norms = []             # type: typing.List[float]
 best_validation_loss = float("inf") # type: float
 remaining_patience = config_params['patience']
+iteration_num = 0
+epoch_num = 0
 
 logger.info(str(config_params))
 
-for i in range(0, config_params['num_epochs']):
+while iteration_num < config_params['num_epochs']:
     epoch_start_time = time.time()
     
     train_iterator = preprocessing.get_generator(
@@ -137,18 +142,33 @@ for i in range(0, config_params['num_epochs']):
     threaded_train_iterator = preprocessing.get_threaded_generator(
         train_iterator, len(train_iterator.filenames),
         num_threads=config_params['num_threads_for_preprocessing'])
-    avg_batch_train_loss = 0
-    num_iterations = 0
     for images_labels in threaded_train_iterator:
         outputs, training_loss = train(numpy.moveaxis(images_labels[0],
                                                       3, 1),
                                        images_labels[1])
-        avg_batch_train_loss += training_loss
-        num_iterations += 1
-        gradient_norms.append(get_gradient_norm(numpy.moveaxis(images_labels[0],
-                                                               3, 1),
-                                                images_labels[1])[0])
-    avg_batch_train_loss = avg_batch_train_loss / num_iterations
+        previous_train_losses.append(training_loss + 0.0)
+        iteration_num += 1
+        gradient_norms.append(
+            numpy.asscalar(
+                get_gradient_norm(
+                    numpy.moveaxis(images_labels[0], 3, 1),
+                    images_labels[1])))
+        
+        previous_learning_rate = learning_rate.get_value()
+        learning_rate.set_value(
+            numpy.float32(
+                get_learning_rate(
+                    previous_train_losses,
+                    previous_validate_losses,
+                    learning_rate.get_value())))
+        
+        if previous_learning_rate != learning_rate.get_value():
+            logger.info('Changing learning rate from '
+                        + str(numpy.asscalar(previous_learning_rate))
+                        + ' to ' + str(numpy.asscalar(learning_rate.get_value()))
+                        + '.')
+            previous_learning_rates.append(
+                (iteration_num + 1, numpy.asscalar(learning_rate.get_value())))
     
     validation_iterator = preprocessing.get_generator(
         config_params['validation_directory'], config_params['image_width'], config_params['batch_size'], type='validation')
@@ -167,6 +187,8 @@ for i in range(0, config_params['num_epochs']):
     
     epoch_end_time = time.time()
     
+    epoch_num = epoch_num + 1
+    
     if avg_validate_loss < best_validation_loss:
         best_validation_loss = avg_validate_loss
         current_network_params = layers.get_all_params(network)
@@ -179,21 +201,13 @@ for i in range(0, config_params['num_epochs']):
     else:
         remaining_patience = remaining_patience - 1
     
-    previous_validate_losses.append(avg_validate_loss)
-    previous_train_losses.append(avg_batch_train_loss)
-    previous_learning_rate = learning_rate.get_value()
-    learning_rate.set_value(
-        numpy.float32(
-            get_learning_rate(
-                previous_train_losses,
-                previous_validate_losses,
-                learning_rate.get_value())))
+    previous_validate_losses.append((iteration_num, avg_validate_loss))
     
-    logger.info('Epoch ' + str(i) + ':\n'
+    logger.info('Epoch ' + str(epoch_num) + ':\n'
                 + '    Crossentropy loss over validation set: '
                 + str(avg_validate_loss) + '.\n'
-                + '    Average batch crossentropy loss over training set:'
-                + ' ' + str(avg_batch_train_loss) + '.\n'
+                + '    Most recent batch loss over training set:'
+                + ' ' + str(training_loss) + '.\n'
                 + '    Time: '
                 + str(int(round(epoch_end_time - epoch_start_time)))
                 + ' seconds.')
@@ -202,17 +216,10 @@ for i in range(0, config_params['num_epochs']):
         logger.info('Best validation loss: ' + str(best_validation_loss) + '.')
         break
     
-    if previous_learning_rate != learning_rate.get_value():
-        logger.info('Changing learning rate from '
-                    + str(previous_learning_rate) + ' to '
-                    + str(learning_rate.get_value()) + '.')
-        previous_learning_rates.append((i+1, learning_rate.get_value()))
-
-logger.info('Average batch training loss per epoch: '
-            + str(previous_validate_losses))
-logger.info('Validation loss per epoch: '
+logger.info('Batch training loss per iteration: '
             + str(previous_train_losses))
+logger.info('Validation loss per epoch: '
+            + str(previous_validate_losses))
+logger.info('Gradient norms per iteration: ' + str(gradient_norms))
 logger.info('Learning rate schedule: ' + str(previous_learning_rates))
-logger.info('Gradient norms per iteration (not per epoch): ' + str(gradient_norms))
-
 logger.info('Finishing run at ' + str(datetime.datetime.now()) + '.')
