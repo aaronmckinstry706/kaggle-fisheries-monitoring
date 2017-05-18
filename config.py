@@ -15,7 +15,7 @@ def read_config_file(filename):
         'batch_size': int,
         'weight_decay': float,
         'num_classes' : int,
-        'num_epochs' : int,
+        'num_iterations' : int,
         'patience' : int,
         'architecture': str} # type: typing.Dict[str, typing.Callable]
     for line in open(filename, 'r'):

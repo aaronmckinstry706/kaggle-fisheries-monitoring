@@ -73,28 +73,28 @@ elif (config_params['architecture'] == 'small'):
         image_shape=(3, config_params['image_width'], config_params['image_width']),
         num_outputs=config_params['num_classes'])
 
-train_outputs = layers.get_output(network, deterministic=False)
+training_outputs = layers.get_output(network, deterministic=False)
 test_outputs = layers.get_output(network, deterministic=True)
 
 network_parameters = layers.get_all_params(network, trainable=True)
 
-train_loss_without_regularization = tensor.sum(
+training_loss_without_regularization = tensor.sum(
     objectives.categorical_crossentropy(
-        train_outputs, labels)) / config_params['batch_size']
-train_loss = train_loss_without_regularization \
+        training_outputs, labels)) / config_params['batch_size']
+training_loss = training_loss_without_regularization \
     + lasagne.regularization.regularize_network_params(
         layer=network, penalty=regularization.l2)
 validation_loss = objectives.categorical_crossentropy(test_outputs, labels)
 
 gradients = tensor.concatenate(
-    [tensor.flatten(tensor.grad(train_loss, params))
+    [tensor.flatten(tensor.grad(training_loss, params))
      for params in layers.get_all_params(network,
                                          trainable=True)])
 gradient_norm = gradients.norm(2)
-#hessian = tensor.hessian(train_loss, params_as_vector)
+#hessian = tensor.hessian(training_loss, params_as_vector)
 
 network_updates = updates.nesterov_momentum(
-    loss_or_grads=train_loss,
+    loss_or_grads=training_loss,
     params=network_parameters,
     learning_rate=learning_rate,
     momentum=config_params['momentum'])
@@ -102,7 +102,7 @@ network_updates = updates.nesterov_momentum(
 logger.info('Compiling the train and validation functions.')
 train = theano.function(
     inputs=[inputs, labels],
-    outputs=[train_outputs, train_loss],
+    outputs=[training_outputs, training_loss],
     updates=network_updates)
 validate = theano.function(inputs=[inputs, labels],
                            outputs=[test_outputs, validation_loss])
@@ -121,7 +121,7 @@ utilities.separate_validation_set(config_params['training_directory'], config_pa
 logger.info('Training model.')
 
 previous_validate_losses = []   # type: typing.List[float]
-previous_train_losses = []      # type: typing.List[float]
+previous_training_losses = []      # type: typing.List[float]
 previous_learning_rates = []    # type: typing.List[typing.Tuple[int, float]]
 previous_learning_rates.append(
     (0, numpy.asscalar(learning_rate.get_value())))
@@ -134,19 +134,19 @@ epoch_num = 0
 
 logger.info(str(config_params))
 
-while iteration_num < config_params['num_epochs']:
+while iteration_num < config_params['num_iterations']:
     epoch_start_time = time.time()
     
-    train_iterator = preprocessing.get_generator(
+    training_iterator = preprocessing.get_generator(
         config_params['training_directory'], config_params['image_width'], config_params['batch_size'], type='training')
-    threaded_train_iterator = preprocessing.get_threaded_generator(
-        train_iterator, len(train_iterator.filenames),
+    threaded_training_iterator = preprocessing.get_threaded_generator(
+        training_iterator, len(training_iterator.filenames),
         num_threads=config_params['num_threads_for_preprocessing'])
-    for images_labels in threaded_train_iterator:
-        outputs, training_loss = train(numpy.moveaxis(images_labels[0],
-                                                      3, 1),
-                                       images_labels[1])
-        previous_train_losses.append(training_loss + 0.0)
+    for images_labels in threaded_training_iterator:
+        outputs, current_training_loss = train(
+            numpy.moveaxis(images_labels[0], 3, 1),
+            images_labels[1])
+        previous_training_losses.append(current_training_loss + 0.0)
         iteration_num += 1
         gradient_norms.append(
             numpy.asscalar(
@@ -158,7 +158,7 @@ while iteration_num < config_params['num_epochs']:
         learning_rate.set_value(
             numpy.float32(
                 get_learning_rate(
-                    previous_train_losses,
+                    previous_training_losses,
                     previous_validate_losses,
                     learning_rate.get_value())))
         
@@ -187,8 +187,6 @@ while iteration_num < config_params['num_epochs']:
     
     epoch_end_time = time.time()
     
-    epoch_num = epoch_num + 1
-    
     if avg_validate_loss < best_validation_loss:
         best_validation_loss = avg_validate_loss
         current_network_params = layers.get_all_params(network)
@@ -207,18 +205,20 @@ while iteration_num < config_params['num_epochs']:
                 + '    Crossentropy loss over validation set: '
                 + str(avg_validate_loss) + '.\n'
                 + '    Most recent batch loss over training set:'
-                + ' ' + str(training_loss) + '.\n'
+                + ' ' + str(current_training_loss) + '.\n'
                 + '    Time: '
                 + str(int(round(epoch_end_time - epoch_start_time)))
                 + ' seconds.')
+    
+    epoch_num = epoch_num + 1
     
     if remaining_patience == 0:
         logger.info('Best validation loss: ' + str(best_validation_loss) + '.')
         break
     
 logger.info('Batch training loss per iteration: '
-            + str(previous_train_losses))
-logger.info('Validation loss per epoch: '
+            + str(previous_training_losses))
+logger.info('Validation loss after each epoch, indexed by iteration: '
             + str(previous_validate_losses))
 logger.info('Gradient norms per iteration: ' + str(gradient_norms))
 logger.info('Learning rate schedule: ' + str(previous_learning_rates))

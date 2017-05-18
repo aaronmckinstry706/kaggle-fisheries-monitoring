@@ -21,7 +21,7 @@ class ConfigTest(unittest.TestCase):
                  ('batch_size', 64),
                  ('weight_decay', 0.0001),
                  ('patience', 40),
-                 ('num_epochs', 40),
+                 ('num_iterations', 40),
                  ('num_classes', 8)]),
             set(params.items()))
 
