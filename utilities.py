@@ -25,31 +25,76 @@ def get_learning_rate(training_loss_history,    # type: typing.List[float]
 #        return learning_rate
 
 def display_history(training_loss_history, validation_loss_history,
-                    gradient_history, variance_window=20):
+                    gradient_history, variance_window=20, recent_window=100):
+    NUM_PLOT_ROWS = 3
+    NUM_PLOT_COLUMNS = 2
+    
+    recent_iterations = range(len(training_loss_history))[-1*recent_window:]
+    
     pyplot.clf()
-    pyplot.subplot(3, 1, 1)
-    pyplot.plot(training_loss_history)
-    pyplot.title('Training Loss')
+    pyplot.gcf().set_size_inches(12, 8)
+    
+    # Training/validation losses.
+    pyplot.subplot(NUM_PLOT_ROWS, NUM_PLOT_COLUMNS, 1)
+    
+    pyplot.plot(training_loss_history, label="Training")
+    pyplot.title('Loss')
     pyplot.xlabel('Iteration')
-    pyplot.ylabel('Batch training loss at iteration')
+    pyplot.ylabel('Loss at iteration')
     
     validation_loss_x = [validation_loss_history[i][0]
                          for i in range(len(validation_loss_history))]
     validation_loss_y = [validation_loss_history[i][1]
                          for i in range(len(validation_loss_history))]
-    pyplot.plot(validation_loss_x, validation_loss_y)
-    pyplot.title('Validation Loss')
-    pyplot.xlabel('Iteration')
-    pyplot.ylabel('Validation loss after iteration')
+    pyplot.plot(validation_loss_x, validation_loss_y, label="Validation")
     
-    pyplot.subplot(3, 1, 2)
+
+    pyplot.xlim(xmin=0)
+    pyplot.ylim(ymin=0)
+    
+    pyplot.legend()
+    
+    # Recent training/validation loss.
+    pyplot.subplot(NUM_PLOT_ROWS, NUM_PLOT_COLUMNS, 2)
+    
+    pyplot.plot(recent_iterations,
+                training_loss_history[-1*recent_window:],
+                label="Training")
+    pyplot.title('Recent Loss')
+    pyplot.xlabel('Iteration')
+    pyplot.ylabel('Loss at iteration')
+    
+    validation_loss_x = [validation_loss_history[i][0]
+                         for i in range(len(validation_loss_history))
+                         if validation_loss_history[i][0] > recent_iterations[0]]
+    validation_loss_y = [validation_loss_history[i][1]
+                         for i in range(len(validation_loss_history))
+                         if validation_loss_history[i][0] > recent_iterations[0]]
+    pyplot.plot(validation_loss_x, validation_loss_y, label="Validation")
+    
+    pyplot.ylim(ymin=0)
+    
+    pyplot.legend()
+    
+    # Gradient norm.
+    pyplot.subplot(NUM_PLOT_ROWS, NUM_PLOT_COLUMNS, 3)
     pyplot.plot(gradient_history)
     pyplot.title('Gradient L2 Norm')
     pyplot.xlabel('Iteration')
     pyplot.ylabel('Gradient L2 norm at iteration')
+    pyplot.xlim(xmin=0)
+    pyplot.ylim(ymin=0)
+
+    # Recent gradient norm.
+    pyplot.subplot(NUM_PLOT_ROWS, NUM_PLOT_COLUMNS, 4)
+    pyplot.plot(recent_iterations, gradient_history[-1*recent_window:])
+    pyplot.title('Recent Gradient L2 Norm')
+    pyplot.xlabel('Iteration')
+    pyplot.ylabel('Gradient L2 norm at iteration')
+    pyplot.ylim(ymin=0)
     
     if len(gradient_history) > variance_window:
-        pyplot.subplot(3, 1, 3)
+        pyplot.subplot(NUM_PLOT_ROWS, NUM_PLOT_COLUMNS, 5)
         variances = []
         for i in range(len(gradient_history) - variance_window):
             variances.append(
@@ -61,6 +106,7 @@ def display_history(training_loss_history, validation_loss_history,
         pyplot.xlabel('Iteration')
         pyplot.ylabel('Gradient variance of ' + str(variance_window) + ' previous iterations')
         pyplot.xlim(xmin=0)
+        pyplot.ylim(ymin=0)
     
     pyplot.gcf().subplots_adjust(hspace=1.0)
     

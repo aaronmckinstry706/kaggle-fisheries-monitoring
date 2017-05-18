@@ -39,6 +39,7 @@ learning_rate = theano.shared(numpy.float32(config_params['initial_learning_rate
 inputs = tensor.tensor4(name='inputs')
 labels = tensor.matrix(name='labels')
 
+# Set the architecture to the user's choice.
 if (config_params['architecture'] == 'big'):
     network = architectures.fully_convolutional_big(
         inputs=inputs,
@@ -62,6 +63,58 @@ elif (config_params['architecture'] == 'small'):
     # This is used in early stopping. The parameters that achieve the lowest
     # error on the validation set are stored in this network.
     best_network = architectures.fully_convolutional_small(
+        inputs=inputs,
+        image_shape=(3, config_params['image_width'], config_params['image_width']),
+        num_outputs=config_params['num_classes'])
+elif (config_params['architecture'] == 'medium'):
+    network = architectures.fully_convolutional_medium(
+        inputs=inputs,
+        image_shape=(3, config_params['image_width'],
+                     config_params['image_width']),
+        num_outputs=config_params['num_classes'])
+    
+    # This is used in early stopping. The parameters that achieve the lowest
+    # error on the validation set are stored in this network.
+    best_network = architectures.fully_convolutional_medium(
+        inputs=inputs,
+        image_shape=(3, config_params['image_width'], config_params['image_width']),
+        num_outputs=config_params['num_classes'])
+elif (config_params['architecture'] == 'smallest'):
+    network = architectures.fully_convolutional_smallest(
+        inputs=inputs,
+        image_shape=(3, config_params['image_width'],
+                     config_params['image_width']),
+        num_outputs=config_params['num_classes'])
+    
+    # This is used in early stopping. The parameters that achieve the lowest
+    # error on the validation set are stored in this network.
+    best_network = architectures.fully_convolutional_smallest(
+        inputs=inputs,
+        image_shape=(3, config_params['image_width'], config_params['image_width']),
+        num_outputs=config_params['num_classes'])
+elif (config_params['architecture'] == 'deep'):
+    network = architectures.fully_convolutional_deep(
+        inputs=inputs,
+        image_shape=(3, config_params['image_width'],
+                     config_params['image_width']),
+        num_outputs=config_params['num_classes'])
+    
+    # This is used in early stopping. The parameters that achieve the lowest
+    # error on the validation set are stored in this network.
+    best_network = architectures.fully_convolutional_deep(
+        inputs=inputs,
+        image_shape=(3, config_params['image_width'], config_params['image_width']),
+        num_outputs=config_params['num_classes'])
+elif (config_params['architecture'] == 'deeper'):
+    network = architectures.fully_convolutional_deeper(
+        inputs=inputs,
+        image_shape=(3, config_params['image_width'],
+                     config_params['image_width']),
+        num_outputs=config_params['num_classes'])
+    
+    # This is used in early stopping. The parameters that achieve the lowest
+    # error on the validation set are stored in this network.
+    best_network = architectures.fully_convolutional_deeper(
         inputs=inputs,
         image_shape=(3, config_params['image_width'], config_params['image_width']),
         num_outputs=config_params['num_classes'])
