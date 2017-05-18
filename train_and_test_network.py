@@ -95,13 +95,13 @@ network_updates = updates.nesterov_momentum(
 logger.info('Compiling the train and validation functions.')
 train = theano.function(
     inputs=[inputs, labels],
-    outputs=[training_outputs, training_loss],
+    outputs=[training_outputs, training_loss, gradient_norm],
     updates=network_updates)
 validate = theano.function(inputs=[inputs, labels],
                            outputs=[test_outputs, validation_loss])
-get_gradient_norm = theano.function(
-    inputs=[inputs, labels],
-    outputs=gradient_norm)
+#get_gradient_norm = theano.function(
+#    inputs=[inputs, labels],
+#    outputs=gradient_norm)
 
 logger.info('Cleaning up training/validation split from previous runs.')
 utilities.recombine_validation_and_training(config_params['validation_directory'],
@@ -138,16 +138,12 @@ while iteration_num < config_params['num_iterations']:
         training_iterator, len(training_iterator.filenames),
         num_threads=config_params['num_threads_for_preprocessing'])
     for images_labels in threaded_training_iterator:
-        outputs, current_training_loss = train(
+        outputs, current_training_loss, current_gradient_norm = train(
             numpy.moveaxis(images_labels[0], 3, 1),
             images_labels[1])
         previous_training_losses.append(current_training_loss + 0.0)
         iteration_num += 1
-        gradient_norms.append(
-            numpy.asscalar(
-                get_gradient_norm(
-                    numpy.moveaxis(images_labels[0], 3, 1),
-                    images_labels[1])))
+        gradient_norms.append(numpy.asscalar(current_gradient_norm))
         
         previous_learning_rate = learning_rate.get_value()
         learning_rate.set_value(
