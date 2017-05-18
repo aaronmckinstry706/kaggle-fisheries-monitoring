@@ -23,16 +23,6 @@ import network_architectures as architectures
 import preprocessing
 import utilities
 
-def get_learning_rate(training_loss_history,    # type: typing.List[float]
-                      validation_loss_history,  # type: typing.List[float]
-                      learning_rate             # type: float
-                      ):
-    # type: (...) -> float
-    if len(training_loss_history) == 50:
-        return learning_rate/10.0
-    else:
-        return learning_rate
-
 pyplot.ion()
 
 now_str = re.sub(" ", "-", str(datetime.datetime.now()))
@@ -162,7 +152,7 @@ while iteration_num < config_params['num_iterations']:
         previous_learning_rate = learning_rate.get_value()
         learning_rate.set_value(
             numpy.float32(
-                get_learning_rate(
+                utilities.get_learning_rate(
                     previous_training_losses,
                     previous_validation_losses,
                     learning_rate.get_value())))

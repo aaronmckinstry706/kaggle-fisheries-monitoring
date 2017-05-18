@@ -8,6 +8,22 @@ import matplotlib.pyplot as pyplot
 import numpy
 import theano.gradient as gradient
 
+def get_learning_rate(training_loss_history,    # type: typing.List[float]
+                      validation_loss_history,  # type: typing.List[float]
+                      learning_rate             # type: float
+                      ):
+    # type: (...) -> float
+    with open('learning_rate.input', 'r+') as learning_rate_file:
+        lr = float('0' + learning_rate_file.read().strip())
+        if lr == 0:
+            learning_rate_file.write(str(learning_rate))
+            lr = learning_rate
+    return lr
+#    if len(training_loss_history) == 10000:
+#        return learning_rate/10.0
+#    else:
+#        return learning_rate
+
 def display_history(training_loss_history, validation_loss_history,
                     gradient_history, variance_window=20):
     pyplot.clf()
