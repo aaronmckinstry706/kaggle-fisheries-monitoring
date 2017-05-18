@@ -60,8 +60,9 @@ def display_history(training_loss_history, validation_loss_history,
         pyplot.title('Gradient Variance')
         pyplot.xlabel('Iteration')
         pyplot.ylabel('Gradient variance of ' + str(variance_window) + ' previous iterations')
+        pyplot.xlim(xmin=0)
     
-    pyplot.gcf().subplots_adjust(hspace=0.5)
+    pyplot.gcf().subplots_adjust(hspace=1.0)
     
     pyplot.pause(0.0001)
 

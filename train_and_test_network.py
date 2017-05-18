@@ -165,7 +165,6 @@ while iteration_num < config_params['num_iterations']:
             previous_learning_rates.append(
                 (iteration_num + 1, numpy.asscalar(learning_rate.get_value())))
         
-        pyplot.pause(0.0001)
     
     validation_iterator = preprocessing.get_generator(
         config_params['validation_directory'], config_params['image_width'], config_params['batch_size'], type='validation')
